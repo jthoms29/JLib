@@ -34,7 +34,7 @@ typedef struct JLIST {
     JNODE* free_memory;
 
     // the amount of free nodes currently allocated
-    size_t current_free_mem;
+    size_t free_block_size;
 } JLIST;
 
 /*
@@ -51,7 +51,7 @@ int JLIST_append(JLIST *list, void* data_ptr);
 /*
  * prepend a pointer to a heap allocated variable to the start of the list
  */
-int JVEC_prepend(JLIST* list, void* data_ptr);
+int JLIST_prepend(JLIST* list, void* data_ptr);
 
 
 
@@ -59,9 +59,6 @@ int JVEC_prepend(JLIST* list, void* data_ptr);
 size_t JLIST_len(JLIST* list);
 
 int JLIST_free(JLIST* list);
-
-
-
 
 
 
