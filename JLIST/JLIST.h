@@ -5,6 +5,7 @@
 
 #define INITIAL_FREE 10
 
+typedef size_t JL_ENTRY;
 /*
  * Implementation of a doubly linked list.
  */
@@ -13,28 +14,32 @@ typedef struct JNODE {
     void* item;
 
     // address of previous node
-    struct JNODE* prev;
+    JL_ENTRY prev;
 
     // address of next node
-    struct JNODE* next;
+    JL_ENTRY next;
 } JNODE;
 
 
 typedef struct JLIST {
-    // address of the first node in list
-    JNODE* head;
+    // index of the first node in list
+    JL_ENTRY head;
 
-    // address of the last node in the list
-    JNODE* tail;
+    // index of the last node in the list
+    JL_ENTRY tail;
+
+    // index of the first free block in the list
+    JL_ENTRY free_index;
 
     // the current length of the list 
     size_t length;
 
-    // a list of open JNODES. Allocated in chunks
-    JNODE* free_memory;
-
     // the amount of free nodes currently allocated
     size_t free_block_size;
+
+    // a pointer to the array used as list memory
+    JNODE* list_mem;
+
 } JLIST;
 
 /*

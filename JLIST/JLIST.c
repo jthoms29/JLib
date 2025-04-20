@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <JLIST.h>
-
+#include <time.h>
+#include <string.h>
 
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
@@ -30,18 +31,18 @@ JLIST* JLIST_new(void) {
     for (i = 0; i < INITIAL_FREE; i++) {
         // if this is the last node, set the next one to null
         if (i == INITIAL_FREE-1) {
-            nodes[i].next = NULL;
+            nodes[i].next = -1;
         }
         else {
-            nodes[i].next = nodes + i+1;
+            nodes[i].next = i+1;
         }
     }
-    list->free_memory = nodes;
+    list->free_index = 0;
     list->free_block_size = INITIAL_FREE;
 
     // set rest of default values
-    list->head = NULL;
-    list->tail = NULL;
+    list->head = -1;
+    list->tail = -1;
     list->length = 0;
 
     return list;
@@ -59,35 +60,52 @@ int JLIST_append(JLIST* list, void* data_ptr) {
     }
 
     // MEM MANAGEMENT STUFF
-    JNODE* new_node = list->free_memory;
+    size_t new_index = list->free_index;
+    JNODE* new_node = list->list_mem + new_index;
     // move free node chain to the next free one
-    list->free_memory = new_node->next;
+    list->free_index = new_node->next;
 
 
     // set up default values for new node
-    new_node->next = NULL;
+    new_node->next = -1;
     new_node->prev = list->tail;
     new_node->item = data_ptr;
 
     // update list values
 
     //list not empty
-    if (list->tail != NULL) {
-        list->tail->next = new_node;
+    if (list->tail != -1) {
+        (list->list_mem + list->tail)->next = new_node;
     }
 
     // empty, make head the new node
     else {
-        list->head = new_node;
+        list->head = new_index;
     }
 
     // appended, is now tail
-    list->tail = new_node;
+    list->tail = new_index;
 
     list->length ++;
+
+    if (list->length == list->free_block_size) {
+        JLIST_grow(list);
+    }
     return 0;
 }
 
+int JLIST_grow(JLIST* list) {
+
+    size_t new_mem_size = list->free_block_size * 2;
+    JNODE* new_mem_array = (JNODE*) realloc(list->list_mem, new_mem_size);
+    if (!new_mem_array) {
+        perror("Failed to grow memory");
+        return 1;
+    }
+    list->list_mem = new_mem_array;
+    list->free_block_size = new_mem_size;
+    return 0;
+}
 
 int main(void) {
     char* str1 = (char*) malloc(sizeof(char) * 6);
@@ -151,6 +169,25 @@ int main(void) {
     }
     printf("\n");
 
+    clock_t t1 = clock();
+
+    for(size_t i = 0; i < 999998; i++) {
+        printf("append");
+        JLIST_append(test1, str2);
+    }
+
+    t1 = clock() - t1;
+    printf("million appends: %ld\n", t1);
+
+    t1 = clock();
+    char* test;
+    walker = test1->head;
+    for(size_t i = 0; i < test1->length; i++) {
+       test = (char*) walker->item; 
+       walker = walker->next;
+    }
+    t1 = clock() - t1;
+    printf("million reads: %ld\n", t1);
     /* JVEC_prepend
     //prepend 1
     JVEC_prepend(test1, str2);
