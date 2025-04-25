@@ -2,43 +2,35 @@
 #define JLIST_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
-#define INITIAL_FREE 10
 
-typedef size_t JL_ENTRY;
 /*
  * Implementation of a doubly linked list.
  */
 typedef struct JNODE {
+
     // address of element in node
     void* item;
 
-    // address of previous node
-    JL_ENTRY prev;
+    // pointer to previous node
+    struct JNODE* prev;
 
-    // address of next node
-    JL_ENTRY next;
+    // pointer to next node
+    struct JNODE* next;
 } JNODE;
 
 
 typedef struct JLIST {
     // index of the first node in list
-    JL_ENTRY head;
+    JNODE* head;
 
     // index of the last node in the list
-    JL_ENTRY tail;
+    JNODE* tail;
 
-    // index of the first free block in the list
-    JL_ENTRY free_index;
 
     // the current length of the list 
     size_t length;
-
-    // the amount of free nodes currently allocated
-    size_t free_block_size;
-
-    // a pointer to the array used as list memory
-    JNODE* list_mem;
 
 } JLIST;
 
