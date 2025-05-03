@@ -2,7 +2,7 @@
 #include <JHASHMAP.h>
 
 
-JHASHMAP* JHASHMAP_new(size_t (*hash_func)) {
+JHASHMAP* JHASHMAP_new(long (*hash_func), bool (*key_compare_func)) {
     JHASHMAP* new_map = (JHASHMAP*) malloc(sizeof(JHASHMAP));
 
     /* Allocate a new hashmap*/
@@ -12,74 +12,205 @@ JHASHMAP* JHASHMAP_new(size_t (*hash_func)) {
     }
 
     /* allocate the hashmap's vector */
-    void** new_vector = (void**) calloc(sizeof(void*), INITIAL_CAPACITY);
+    JHASHMAP_ENTRY* new_vector = (JHASHMAP_ENTRY*) calloc(sizeof(JHASHMAP_ENTRY*), INITIAL_CAPACITY);
     if (!new_vector) {
         perror("error allocating hash map's vector");
         free(new_map);
         return NULL;
     }
 
-    /* set map's default values */
-    new_map->capacity = INITIAL_CAPACITY;
-    new_map->occupied = 0;
     new_map->vector = new_vector;
     new_map->hash_func = hash_func;
+    new_map->key_compare_func = key_compare_func;
+    new_map->capacity = INITIAL_CAPACITY;
 
     return new_map;
 }
 
-size_t JHASHMAP_quadradic_probe(void** vector, size_t index, size_t capacity) {
-    size_t j, new_index;
-    long p_j, frac;
+long JHASHMAP_quadradic_probe_insert(JHASHMAP* map, void* key, long index) {
+    long j, new_index, p_j;
+    size_t count;
 
     /* offset from starting position */
     j = 1;
+    count = 0;
+    /* check alternating offsets of perfect squares from the found index until an empty space is found*/
     for(;;) {
-        frac = (j+1)/2;
-        p_j = (int64_t) pow(-1, (j-1)) *  (int64_t) pow(((j+1)/2), 2);
-        new_index = ((int64_t) index + p_j) % capacity;
+        /* the fraction in the second power is int division*/
+        p_j = pow(-1, (j-1)) *  pow(((j+1)/2), 2);
+        new_index = ((int64_t) index + p_j) % map->capacity;
 
         /* found an empty index. return it */
-        if (vector[new_index] == NULL) {
-            printf("%ld\n", p_j);
+        if (map->vector[new_index].in_use ==  false) {
+            printf("%d\n",p_j);
             break;
         }
+        /* check if occupied space has same key. If so, it can't be entered*/
+        if (map->key_compare_func(key, map->vector[new_index].key)) {
+            return -2;
+        }
+
         j+=1;
+        count+=1;
+        /* Free index not found */
+        if (count == map->capacity) {
+            printf("yep");
+            return -1;
+        }
     }
     return new_index;
 }
 
-size_t JHASHMAP_hash_int32(int32_t* num, size_t vec_length) {
-    return *num % vec_length;
+long JHASHMAP_quadradic_probe_get(JHASHMAP* map, void* key, long index) {
+    long j, new_index, p_j;
+    size_t count;
+
+    /* offset from starting position */
+    j = 1;
+    count = 0;
+    /* check alternating offsets of perfect squares from the found index until an empty space is found*/
+    for(;;) {
+        /* the fraction in the second power is int division*/
+        p_j = pow(-1, (j-1)) *  pow(((j+1)/2), 2);
+        new_index = ((int64_t) index + p_j) % map->capacity;
+
+        /* check if the index's key is the same as ours. If so, return this index */
+        if (map->vector[new_index].in_use && map->key_compare_func(key, map->vector[new_index].key)) {
+            //printf("%d\n",p_j);
+            break;
+        }
+        /* If the current isn't either in use or previously in use, we can't continue searching - the key isn't in the map*/
+        if (!map->vector[new_index].in_use && !map->vector[new_index].previously_in_use) {
+            return -2;
+        }
+
+        j+=1;
+        count+=1;
+        /* Desired key not found */
+        if (count == map->capacity) {
+            return -1;
+        }
+    }
+    return new_index;
 }
+
 
 int8_t JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
-    // get index from key
-    size_t index = map->hash_func(key, map->capacity);
+    double load_factor;
+    long index;
+    /* get index from key */
+    retry:
+    index = map->hash_func(key, map->capacity);
 
     // this space is already occupied. Use quadratic probing to find an empty one
-    if (map->vector[index] != NULL) {
-        index = JHASHMAP_quadradic_probe(map->vector, index, map->capacity);
+    if (map->vector[index].in_use) {
+
+        if (map->key_compare_func(key, map->vector[index].key)) {
+            printf("cannot add repeat key to map\n");
+            return 1;
+        }
+        index = JHASHMAP_quadradic_probe_insert(map, (void*)key, (void*)index);
+        //printf("%ld\n", index);
+        /* If the above function returns -1, a different index wasn't able to be found.
+           The size of the vector must be increased*/
+        if (index == -1) {
+            grow_table(map);
+            goto retry;
+        }
+        /* Key already in map*/
+        if (index == -2) {
+            printf("cannot add repeat key to map\n");
+            return 1;
+        }
     }
 
-    map->vector[index] = value;
+    map->vector[index].key = key;
+    map->vector[index].value = value;
+    map->vector[index].in_use = true;
+    map->occupied++;
+
+    /* If the load factor exceeds .75, increase the size of the table*/
+    load_factor = (double) map->occupied / (double) map->capacity;
+
+    if (load_factor > 0.75) {
+        grow_table(map);
+    }
 
     return 0;
 }
 
-int main(void) {
-    JHASHMAP* test = JHASHMAP_new(JHASHMAP_hash_int32);
-    printf("int64: %ld, int: %ld\n", sizeof(int64_t*), sizeof(int*));
-    int32_t key = 3, val = 5;
-    int32_t* keyref = &key, *valref = &val;
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
-    JHASHMAP_add(test, keyref, valref);
+
+void* JHASHMAP_get(JHASHMAP* map, void* key) {
+    long index;
+    index = map->hash_func(key, map->capacity);
+
+    /* If the keys match, return the item at this index*/
+    if (map->key_compare_func(key, map->vector[index].key)) {
+        return map->vector[index].value;
+    }
+
+    /* Otherwise, need to do quadratic probing*/
+    index = JHASHMAP_quadradic_probe_get(map, key, index);
+    
+    /* not in map */
+    if (index < 0) {
+        return NULL;
+    }
+    return map->vector[index].value;
+}
+
+
+
+int8_t grow_table(JHASHMAP* map) {
+    long i, old_capacity, new_capacity;
+    JHASHMAP_ENTRY* old_vector;
+   
+    old_capacity = map->capacity;
+    new_capacity = old_capacity * 2;
+
+    old_vector = map->vector;
+
+    /* check for overflow*/
+    if (new_capacity / 2 != old_capacity) {
+        printf("Cannot grow table anymore");
+        return 1;
+    }
+
+    JHASHMAP_ENTRY* new_vector = (JHASHMAP_ENTRY*) calloc(sizeof(JHASHMAP_ENTRY), new_capacity);
+    if (!new_vector) {
+        perror("could not allocate resized hashmap");
+        return 1;
+    }
+
+    map->capacity = new_capacity;
+    map->occupied = 0;
+    map->vector = new_vector;
+
+    /* Rehash all vector from the original table into the new one*/
+    for(i = 0; i < old_capacity; i++) {
+        if (old_vector[i].in_use) {
+            JHASHMAP_add(map, old_vector[i].key, old_vector[i].value);
+        }
+    }
+
+    /* get rid of old vector*/
+    free(old_vector);
+    old_vector = NULL;
     
     return 0;
+}
+
+
+
+/* TYPE SPECIFIC FUNCTIONS ########################### */
+/* int */
+long JHASHMAP_hash_int(void* key, size_t vec_length) {
+    return *((int*)key) % vec_length;
+}
+
+bool JHASHMAP_compare_int(void* key1, void* key2) {
+    int k1 = *((int*)key1);
+    int k2 = *((int*)key2);
+
+    return k1 == k2;
 }

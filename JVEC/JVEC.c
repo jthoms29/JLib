@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <time.h>
 
 /*
  * initialize a new JVEC. Returns a reference to the heap allocated vector.
@@ -250,4 +250,22 @@ int main(void) {
     }
     printf("\n");
 
+
+    clock_t t1 = clock();
+    for (size_t i = 0; i < 1000000; i++) {
+        JVEC_append(test1, str3);
+    }
+    t1 = clock() - t1;
+
+    printf("million appends: %ld\n", t1);
+
+    t1 = clock();
+    char* testspeed;
+    for (size_t i = 0; i < test1->length; i++) {
+        testspeed = (char*) test1->head[i];
+    }
+
+    t1 = clock() - t1;
+
+    printf("million reads: %ld\n", t1);
 }
