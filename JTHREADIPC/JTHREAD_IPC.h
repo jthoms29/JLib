@@ -14,11 +14,9 @@ typedef struct JMESSAGE {
 
 typedef struct JMESSAGE_QUEUE {
     /* Queue of messages that can be sent to this thread */
-    JLIST* queue;
+    JLIST* list;
 
     /* Mutex and condition variable. The thread will block after sending a message*/
-    pthread_mutex_t mutex;
-    pthread_cond_t wait;
 
 } JMESSAGE_QUEUE;
 
@@ -57,3 +55,4 @@ int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* threa
 JMESSAGE_QUEUE* JMESSAGE_QUEUE_DIR_get_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread);
 
 #endif
+

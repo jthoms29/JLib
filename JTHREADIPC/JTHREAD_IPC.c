@@ -26,7 +26,7 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE* receiver_queue, void* message) {
 }
 */
 
-JMESSAGE_QUEUE_DIR_hash_pthread_t(void* key, size_t map_capacity) {
+pthread_t JMESSAGE_QUEUE_DIR_hash_pthread_t(void* key, size_t map_capacity) {
     return *((pthread_t*)key) % map_capacity;
 }
 
@@ -54,6 +54,13 @@ int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* threa
     JMESSAGE_QUEUE* msg_queue = (JMESSAGE_QUEUE*) calloc(1, sizeof(JMESSAGE_QUEUE));
     if (!msg_queue) {
         printf("Failed to allocate new message queue.\n");
+        return 1;
+    }
+
+    msg_queue->list = JLIST_new();
+
+    if (!msg_queue->list) {
+        printf("JMESSAGE_QUEUE_DIR_new_queue: Error creating list.\n");
         return 1;
     }
 
@@ -97,7 +104,7 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread, void* mes
     message_container->message = message;
     message_container->sender = pthread_self();
 
-    if (JLIST_prepend(queue, (void*) message_container)) {
+    if (JLIST_prepend(queue->list, (void*) message_container)) {
         printf("whoops.");
     }
 
@@ -130,12 +137,12 @@ int main(void) {
         printf("test2's queue doesn't exist.\n");
     }
 
-    char message[] = "This is a new message\n";
+    char* message = "This is a new message\n";
     if (JTHREAD_IPC_send(queue_dir, &test1, (void*) message)) {
         printf("Issue sending.\n");
     }
 
     JMESSAGE_QUEUE* t1q = JMESSAGE_QUEUE_DIR_get_queue(queue_dir, &test1);
-    JMESSAGE* messagebox = JLIST_pop(t1q->queue);
+    JMESSAGE* messagebox = (JMESSAGE*) JLIST_pop(t1q->list);
     printf("%s\n", (char*) messagebox->message);
 }
