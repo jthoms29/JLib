@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <JLIST.h>
-
+#include <string.h>
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
 JLIST* JLIST_new(void) {
 
     // allocate a new list
-    JLIST* list = (JLIST*) malloc(sizeof(JLIST));
+    JLIST* list = (JLIST*) calloc(1,sizeof(JLIST));
     if (!list) {
         perror("Failed to allocate list");
         return NULL;
@@ -27,6 +27,7 @@ JLIST* JLIST_new(void) {
  * append a pointer to a heap allocated variable to the end of the list
  */
 int JLIST_append(JLIST* list, void* data_ptr) {
+
     if (!list) {
         printf("Error: List is null\n");
         return 1;
@@ -36,6 +37,7 @@ int JLIST_append(JLIST* list, void* data_ptr) {
         return 1;
     }
 
+    pthread_mutex_lock(&list->list_tex);
     JNODE* new_node = (JNODE*) malloc(sizeof(JNODE));
 
     // set up default values for new node
@@ -53,6 +55,8 @@ int JLIST_append(JLIST* list, void* data_ptr) {
     // empty, make head the new node
     else {
         list->head = new_node;
+        // If the list was previously empty, set the cursor to the new item.
+        list->cur = new_node;
     }
 
     // appended, is now tail
@@ -60,10 +64,46 @@ int JLIST_append(JLIST* list, void* data_ptr) {
 
     list->length ++;
 
-    // If the list was previously empty, set the cursor to the new item.
-    list->cur = new_node;
-
+    pthread_mutex_signal(&list->list_tex);
     return 0;
+}
+
+/*
+ * Insert a pointer to a heap allocated variable at the start of the list.
+ */
+int JLIST_prepend(JLIST* list, void* data_ptr) {
+    if (!list) {
+        printf("Error: List is null\n");
+        return 1;
+    }
+    if (!data_ptr) {
+        printf("Error: data pointer is null\n");
+        return 1;
+    }
+
+    pthread_mutex_lock(&list->list_tex);
+
+    // allocate a new node
+    JNODE* new_node = (JNODE*) malloc(sizeof(JNODE));
+    new_node->item = data_ptr;
+
+    new_node->next = list->head;
+    new_node->prev = NULL;
+
+    if (list->head) {
+        list->head->prev = new_node;
+    }
+    /* if the list is empty, this will also be the tail */
+    else {
+        list->tail = new_node;
+        list->cur = new_node;
+    }
+
+    list->head = new_node;
+
+    list->length++;
+    return 0;
+
 }
 
 /*
@@ -80,6 +120,7 @@ int JLIST_insert(JLIST* list, void* data_ptr) {
         return 1;
     }
 
+    pthread_mutex_lock(&list->list_tex);
     JNODE* cursor = list->cur;
 
     // allocate a new node
@@ -108,10 +149,38 @@ int JLIST_insert(JLIST* list, void* data_ptr) {
         }
     }
 
+    list->cur = new_node;
     list->length++;
+    pthread_mutex_signal(&list->list_tex);
     return 0;
 }
 
+/* Remove the last item in the list and return it.*/
+void* JLIST_pop(JLIST* list) {
+    if (!list) {
+        printf("Error: List is null\n");
+        return NULL;
+    }
+
+    pthread_mutex_lock(&list->list_tex);
+    /* List is empty, return nothing*/
+    if (!list->tail) {
+        return NULL;
+    }
+
+    JNODE* old_tail = list->tail;
+    void* item = old_tail->item;
+
+    list->tail = old_tail->prev;
+    if (list->tail) {
+        list->tail->next = NULL;
+    }
+
+    free(old_tail);
+    old_tail = NULL;
+    pthread_mutex_signal(&list->list_tex);
+    return item;
+}
 
 /* CURSOR FUNCTIONS $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ */
 
@@ -123,7 +192,10 @@ int JLIST_first(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
+
+    pthread_mutex_lock(&list->list_tex);
     list->cur = list->head;
+    pthread_mutex_signal(&list->list_tex);
     return 0;
 }
 
@@ -135,7 +207,9 @@ int JLIST_last(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
+    pthread_mutex_lock(&list->list_tex);
     list->cur = list->tail;
+    pthread_mutex_signal(&list->list_tex);
     return 0;
 }
 
@@ -147,15 +221,51 @@ int JLIST_next(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
+    pthread_mutex_lock(&list->list_tex);
     /* If the list is empty, or if at the last item, do nothing. */
     if (!list->cur || !list->cur->next) {
         return 0;
     }
 
     list->cur = list->cur->next;
+    pthread_mutex_signal(&list->list_tex);
     return 0;
 }
 
+/* Move to the previous item in the list */
+int JLIST_prev(JLIST* list) {
+    if (!list) {
+        printf("Error: List is null\n");
+        return 1;
+    }
+    pthread_mutex_lock(&list->list_tex);
+
+    // move cursor back if previous item exists
+    if (list->cur && list->cur->prev) {
+        list->cur = list->cur->prev;
+    }
+    pthread_mutex_signal(&list->list_tex);
+    return 0;
+}
+
+/* Return the item at the current list location. */
+void* JLIST_get(JLIST* list) {
+    if (!list) {
+        printf("Error: List is null\n");
+        return NULL;
+    }
+    pthread_mutex_lock(&list->list_tex);
+    /* If list is empty, do nothing*/
+    if (!list->cur) {
+        pthread_mutex_signal(&list->list_tex);
+        return NULL;
+    }
+
+    pthread_mutex_signal(&list->list_tex);
+    return list->cur->item;
+}
+
+/*
 int main(void) {
     char* str1 = (char*) malloc(sizeof(char) * 6);
     strncpy(str1, "hello", 6);
@@ -168,7 +278,7 @@ int main(void) {
 
     JNODE* walker;
 
-    /* JLIST_new */
+    /* JLIST_new 
     JLIST* test1 = JLIST_new();
 
     if (!test1) {
@@ -179,7 +289,7 @@ int main(void) {
     }
 
 
-    /* JLIST_append*/
+    /* JLIST_append
 
     // append 1
     JLIST_append(test1, str1);
@@ -209,7 +319,7 @@ int main(void) {
     }
     printf("\n");
 
-    /* JLIST_prepend */
+    /* JLIST_prepend 
     //prepend 1
     JLIST_prepend(test1, str2);
     if (test1->length != 3) {
@@ -219,11 +329,12 @@ int main(void) {
     printf("prepend 1: Should be 'Second string, 'hello', 'Second string' : ");
     for (size_t i=0; i < test1->length; i++) {
         printf("%s, ", (char*) walker->item);
+        walker = walker->next;
     }
     printf("\n");
 
 
-    /* JLIST_insert */
+    /* JLIST_insert 
     //insert 1
     JLIST_insert(test1, str3);
     if (test1->length != 4) {
@@ -233,7 +344,9 @@ int main(void) {
     printf("insert 1: Should be 'Second string', 'string number three', 'hello', 'Second string' : ");
     for (size_t i=0; i < test1->length; i++) {
         printf("%s, ", (char*) walker->item);
+        walker = walker->next;
     }
     printf("\n");
 
 }
+    */
