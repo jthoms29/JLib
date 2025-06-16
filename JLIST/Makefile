@@ -1,7 +1,7 @@
 # John Thoms
 CC = gcc
 CFLAGS = -g
-CPPFLAGS = -Wall -pedantic -Wextra
+CPPFLAGS = -std=c99 -Wall -pedantic -Wextra
 
 
 OBJ_DIR=build/$(PLATFORM)/obj

@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#define INITIAL_CAPACITY 4
+#define INITIAL_CAPACITY 20
 
 
 typedef struct JHASHMAP_ENTRY {
@@ -36,13 +36,34 @@ typedef struct JHASHMAP {
 
 } JHASHMAP;
 
+/* 
+    Create a new heap allocated hashmap.
+    Must supply functions to hash keys and compare keys 
+*/
+JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capcity), bool (*key_compare_func) (void* key1, void* key2));
 
-JHASHMAP* JHASHMAP_new(long (*hash_func), bool (*key_compare_func));
-
+/*
+    Add a heap allocated element to the hashmap.
+    Returns
+    0 - success
+    TODO
+*/
 int8_t JHASHMAP_add(JHASHMAP* map, void* key, void* value);
 
+/*
+    Get value from hashmap for corresponding key. Returns NULL if key
+    isn't in map.
+*/
 void* JHASHMAP_get(JHASHMAP* map, void* key);
-    
+
+/*
+    Checks to see if key is in map. Returns true if so, false otherwise
+*/
+bool JHASHMAP_has(JHASHMAP* map, void* key);
+   
+/*
+    Used if
+*/
 long JHASHMAP_quadradic_probe(JHASHMAP* map, void* key, size_t index, size_t capacity);
 
 long JHASHMAP_hash_data(JHASHMAP* map, void* key, void* value);
@@ -50,7 +71,7 @@ long JHASHMAP_hash_data(JHASHMAP* map, void* key, void* value);
 int8_t grow_table(JHASHMAP* map);
 
 /* TYPE SPECIFIC FUNCTIONS ################################## */
-long JHASHMAP_hash_int(void* key, size_t vec_length);
+long JHASHMAP_hash_int(void* key, size_t map_capacity);
 bool JHASHMAP_compare_int(void* key1, void* key2);
 
 

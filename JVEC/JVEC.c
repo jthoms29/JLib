@@ -8,7 +8,7 @@
  * initialize a new JVEC. Returns a reference to the heap allocated vector.
  */
 JVEC* JVEC_new() {
-    JVEC* vector = (JVEC*) malloc(sizeof(JVEC));
+    JVEC* vector = (JVEC*) calloc(sizeof(JVEC), 1);
 
     if (!vector) {
         perror("Failed to allocate new vector");
@@ -16,7 +16,7 @@ JVEC* JVEC_new() {
     }
 
     // start off with INITIAL_CAP elements
-    void** array = (void**)malloc(sizeof(void*) * INITIAL_CAP);
+    void** array = (void**)calloc(sizeof(void*),INITIAL_CAP);
     // allocation fails
     if (!array) {
         perror("Failed to allocate array memory");

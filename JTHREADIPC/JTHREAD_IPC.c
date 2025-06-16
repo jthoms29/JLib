@@ -108,8 +108,12 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread, void* mes
         printf("whoops.");
     }
 
+    /* then sleep*/
+
     return 0;
 }
+
+JTHREAD_IPC_receive
 
 
 int hello(void) {

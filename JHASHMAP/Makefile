@@ -1,14 +1,14 @@
 # John Thoms
 CC = gcc
 CFLAGS = -g
-CPPFLAGS = -Wall -pedantic -Wextra
+CPPFLAGS = -Wall -pedantic -Wextra -std=c99
 
 
 OBJ_DIR=build/obj
 LIB_DIR=build/lib
 BIN_DIR=build/bin
 
-BINARIES = maptest
+BINARIES = main
 all: $(BINARIES)
 
 clean:
@@ -35,9 +35,9 @@ $(OBJ_DIR)/main.o: main.c | $(OBJ_DIR)
 
 
 
-$(BIN_DIR)/maptest: $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/main.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/main.o -lm -o $(BIN_DIR)/maptest
+$(BIN_DIR)/main: $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/main.o | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/main.o -lm -o $(BIN_DIR)/main
 
 
-maptest: $(BIN_DIR)/maptest
-	ln -sf $(BIN_DIR)/maptest maptest
+main: $(BIN_DIR)/main
+	ln -sf $(BIN_DIR)/main main

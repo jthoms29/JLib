@@ -1,12 +1,12 @@
 # John Thoms
 CC = gcc
 CFLAGS = -g
-CPPFLAGS = -std=gnu90 -Wall -pedantic -Wextra
+CPPFLAGS = -std=c99 -Wall -pedantic -Wextra
 
 
-OBJ_DIR=build/$(PLATFORM)/obj
-LIB_DIR=build/$(PLATFORM)/lib
-BIN_DIR=build/$(PLATFORM)/bin
+OBJ_DIR=build/obj
+LIB_DIR=build/lib
+BIN_DIR=build/bin
 
 BINARIES = JARENA
 all: $(BINARIES)

@@ -1,5 +1,4 @@
 #include <JARENA.h>
-#include <string.h>
 
 JARENA_NODE* JARENA_alloc_new_node(size_t size_of_block) {
     JARENA_NODE* new_node = calloc(1, sizeof(JARENA_NODE));
@@ -67,6 +66,7 @@ byte* JARENA_alloc(JARENA* arena, size_t alloc_amount) {
 
     byte* mem_ret = walker->cur_block_address;
     walker->cur_block_address += alloc_amount;
+
    
     return mem_ret;
 }

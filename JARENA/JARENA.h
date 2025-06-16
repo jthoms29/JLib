@@ -37,7 +37,6 @@ JARENA* JARENA_new(void);
 
 byte* JARENA_alloc(JARENA* arena, size_t alloc_amount);
 
-byte* JARENA_realloc(JARENA* arena, byte* old_mem, size_t old_alloc_amount, size_t alloc_amount);
 
 int JARENA_free(JARENA* arena);
 # endif
