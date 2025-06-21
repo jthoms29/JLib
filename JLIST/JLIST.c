@@ -18,6 +18,7 @@ JLIST* JLIST_new(void) {
     list->head = NULL;
     list->tail = NULL;
     list->length = 0;
+    pthread_mutex_init(&list->list_tex, NULL);
 
     return list;
 }
@@ -64,7 +65,7 @@ int JLIST_append(JLIST* list, void* data_ptr) {
 
     list->length ++;
 
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -102,6 +103,7 @@ int JLIST_prepend(JLIST* list, void* data_ptr) {
     list->head = new_node;
 
     list->length++;
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 
 }
@@ -151,7 +153,7 @@ int JLIST_insert(JLIST* list, void* data_ptr) {
 
     list->cur = new_node;
     list->length++;
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -178,7 +180,7 @@ void* JLIST_pop(JLIST* list) {
 
     free(old_tail);
     old_tail = NULL;
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return item;
 }
 
@@ -195,7 +197,7 @@ int JLIST_first(JLIST* list) {
 
     pthread_mutex_lock(&list->list_tex);
     list->cur = list->head;
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -209,7 +211,7 @@ int JLIST_last(JLIST* list) {
     }
     pthread_mutex_lock(&list->list_tex);
     list->cur = list->tail;
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -228,7 +230,7 @@ int JLIST_next(JLIST* list) {
     }
 
     list->cur = list->cur->next;
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -244,7 +246,7 @@ int JLIST_prev(JLIST* list) {
     if (list->cur && list->cur->prev) {
         list->cur = list->cur->prev;
     }
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -257,15 +259,14 @@ void* JLIST_get(JLIST* list) {
     pthread_mutex_lock(&list->list_tex);
     /* If list is empty, do nothing*/
     if (!list->cur) {
-        pthread_mutex_signal(&list->list_tex);
+        pthread_mutex_unlock(&list->list_tex);
         return NULL;
     }
 
-    pthread_mutex_signal(&list->list_tex);
+    pthread_mutex_unlock(&list->list_tex);
     return list->cur->item;
 }
 
-/*
 int main(void) {
     char* str1 = (char*) malloc(sizeof(char) * 6);
     strncpy(str1, "hello", 6);
@@ -278,7 +279,7 @@ int main(void) {
 
     JNODE* walker;
 
-    /* JLIST_new 
+    // JLIST_new 
     JLIST* test1 = JLIST_new();
 
     if (!test1) {
@@ -289,7 +290,7 @@ int main(void) {
     }
 
 
-    /* JLIST_append
+    // JLIST_append
 
     // append 1
     JLIST_append(test1, str1);
@@ -319,7 +320,7 @@ int main(void) {
     }
     printf("\n");
 
-    /* JLIST_prepend 
+    // JLIST_prepend 
     //prepend 1
     JLIST_prepend(test1, str2);
     if (test1->length != 3) {
@@ -334,7 +335,7 @@ int main(void) {
     printf("\n");
 
 
-    /* JLIST_insert 
+    // JLIST_insert 
     //insert 1
     JLIST_insert(test1, str3);
     if (test1->length != 4) {
@@ -349,4 +350,3 @@ int main(void) {
     printf("\n");
 
 }
-    */
