@@ -1,12 +1,15 @@
 #ifndef JHASHMAP_H
 #define JHASHMAP_H
 
+#include <bits/pthreadtypes.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <pthread.h>
+
 #define INITIAL_CAPACITY 20
 
 
@@ -34,6 +37,16 @@ typedef struct JHASHMAP {
     /* the current capacity of the vector */
     size_t capacity;
 
+    /* SYNCHRONIZATION VARS  ******************************* */
+    pthread_mutex_t map_tex;
+
+    pthread_cond_t map_cond;
+
+    // used to keep track of current number of readers. Functions that
+    // modify the hashmap cannot be executed if this number isn't 0.
+    int readers;
+    
+
 } JHASHMAP;
 
 /* 
@@ -48,7 +61,7 @@ JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capcity), bool (
     0 - success
     TODO
 */
-int8_t JHASHMAP_add(JHASHMAP* map, void* key, void* value);
+int JHASHMAP_add(JHASHMAP* map, void* key, void* value);
 
 /*
     Get value from hashmap for corresponding key. Returns NULL if key
@@ -68,7 +81,7 @@ long JHASHMAP_quadradic_probe(JHASHMAP* map, void* key, size_t index, size_t cap
 
 long JHASHMAP_hash_data(JHASHMAP* map, void* key, void* value);
 
-int8_t grow_table(JHASHMAP* map);
+int grow_table(JHASHMAP* map);
 
 /* TYPE SPECIFIC FUNCTIONS ################################## */
 long JHASHMAP_hash_int(void* key, size_t map_capacity);

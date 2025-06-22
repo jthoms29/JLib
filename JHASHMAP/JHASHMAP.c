@@ -1,7 +1,9 @@
 
 #include <JHASHMAP.h>
+#include <pthread.h>
 
-JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capacity), bool (*key_compare_func) (void* key1, void* key2)) {
+JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capacity),
+bool (*key_compare_func) (void* key1, void* key2)) {
     /* Allocate a new hashmap*/
     JHASHMAP* new_map = (JHASHMAP*) malloc(sizeof(JHASHMAP));
     if (!new_map) {
@@ -23,13 +25,17 @@ JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capacity), bool 
     new_map->key_compare_func = key_compare_func;
     new_map->capacity = INITIAL_CAPACITY;
 
+    pthread_mutex_init(&new_map->map_tex, NULL);
+    pthread_cond_init(&new_map->map_cond, NULL);
+    new_map->readers = 0;
+
     return new_map;
 }
 
 long JHASHMAP_quadradic_probe_insert(JHASHMAP* map, void* key, long index) {
+
     long j, new_index, p_j;
     size_t count;
-
     /* offset from starting position */
     j = 1;
     count = 0;
@@ -94,9 +100,18 @@ long JHASHMAP_quadradic_probe_get(JHASHMAP* map, void* key, long index) {
 }
 
 
-int8_t JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
+int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     double load_factor;
     long index;
+
+    pthread_mutex_lock(&map->map_tex);
+
+    /* If there are any threads currently reading this hashmap, no modifications may be done.
+       this thread must wait. */
+    if (map->readers) {
+        pthread_cond_wait(&map->map_cond, &map->map_tex);
+    }
+
     /* get index from key */
     retry:
     index = map->hash_func(key, map->capacity);
@@ -135,6 +150,7 @@ int8_t JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         grow_table(map);
     }
 
+    pthread_mutex_unlock(&map->map_tex);
     return 0;
 }
 
