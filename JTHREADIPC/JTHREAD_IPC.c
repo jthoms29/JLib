@@ -1,32 +1,6 @@
 #include <JTHREAD_IPC.h>
 
-/*
-int JTHREAD_IPC_send_block(JMESSAGE_QUEUE* receiver_queue, void* message) {
-    if (receiver_queue == NULL) {
-        printf("Error: thread's message queue is null.\n");
-        return 1;
-    }
-
-    //acquire mutex before accessing thread's message queue
-    pthread_mutex_lock(&receiver_queue->mutex);
-        JLIST_append(receiver_queue->queue, message);
-        //signal this thread, if it is sleeping
-        pthread_condition_signal(receiver_queue->wait);    
-    pthread_mutex_unlock(&receiver_queue->mutex);
-
-    //then wait on own condition variable.
-    return 0;
-}
-
-int JTHREAD_IPC_send(JMESSAGE_QUEUE* receiver_queue, void* message) {
-    if (receiver_queue == NULL) {
-        printf("Error: thread's message queue is null.\n");
-    }
-
-}
-*/
-
-pthread_t JMESSAGE_QUEUE_DIR_hash_pthread_t(void* key, size_t map_capacity) {
+long JMESSAGE_QUEUE_DIR_hash_pthread_t(void* key, size_t map_capacity) {
     return *((pthread_t*)key) % map_capacity;
 }
 
@@ -57,6 +31,11 @@ int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* threa
         return 1;
     }
 
+    /* Init synchronization vars */
+    pthread_mutex_init(&msg_queue->mq_tex, NULL);
+    pthread_cond_init(&msg_queue->mq_cond, NULL);
+
+
     msg_queue->list = JLIST_new();
 
     if (!msg_queue->list) {
@@ -69,7 +48,7 @@ int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* threa
         printf("Failed to add new queue to directory.\n");
         return 1;
     }
-
+  
     return 0;
 }
 
@@ -109,14 +88,16 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread, void* mes
     }
 
     /* then sleep*/
+    pthread_mutex_lock(&queue->mq_tex);
+        pthread_cond_wait(&queue->mq_cond, &queue->mq_tex);
+    pthread_mutex_unlock(&queue->mq_tex);
 
     return 0;
 }
 
-JTHREAD_IPC_receive
 
 
-int hello(void) {
+void* hello(void*) {
     printf("this is thread %ld\n", pthread_self());
     return 0;
 }
@@ -124,6 +105,7 @@ int hello(void) {
 
 pthread_t test1;
 pthread_t test2;
+
 int main(void) {
     JMESSAGE_QUEUE_DIR* queue_dir = JMESSAGE_QUEUE_DIR_new();
     pthread_create(&test1, NULL, hello, NULL);
@@ -146,7 +128,16 @@ int main(void) {
         printf("Issue sending.\n");
     }
 
+    char* message2 = "another message\n";
+    if (JTHREAD_IPC_send(queue_dir, &test2, (void*) message2)) {
+        printf("Issue sending.\n");
+    }
+
     JMESSAGE_QUEUE* t1q = JMESSAGE_QUEUE_DIR_get_queue(queue_dir, &test1);
     JMESSAGE* messagebox = (JMESSAGE*) JLIST_pop(t1q->list);
+    printf("%s\n", (char*) messagebox->message);
+
+    t1q = JMESSAGE_QUEUE_DIR_get_queue(queue_dir, &test2);
+    messagebox = (JMESSAGE*) JLIST_pop(t1q->list);
     printf("%s\n", (char*) messagebox->message);
 }

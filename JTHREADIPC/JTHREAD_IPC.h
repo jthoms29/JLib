@@ -17,6 +17,8 @@ typedef struct JMESSAGE_QUEUE {
     JLIST* list;
 
     /* Mutex and condition variable. The thread will block after sending a message*/
+    pthread_mutex_t mq_tex;
+    pthread_cond_t mq_cond;
 
 } JMESSAGE_QUEUE;
 
