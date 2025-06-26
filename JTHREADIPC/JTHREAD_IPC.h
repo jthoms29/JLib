@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <string.h>
 #include <../JLIST/JLIST.h>
 #include <../JHASHMAP/JHASHMAP.h>
 
@@ -19,6 +20,7 @@ typedef struct JMESSAGE_QUEUE {
     /* Mutex and condition variable. The thread will block after sending a message*/
     pthread_mutex_t mq_tex;
     pthread_cond_t mq_cond;
+    int num_messages;
 
 } JMESSAGE_QUEUE;
 
@@ -29,13 +31,13 @@ typedef JHASHMAP JMESSAGE_QUEUE_DIR;
  * Sends a message to the thread of this index in the thread table. Blocks, so
  * will only be awakened when a message is sent back.
  */
-int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread, void* message);
+int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread, void* message);
 
 /*
  * Sends a message and wakes the specified thread.. Does not block, so
  * the sending thread remains active. 
  */
-int JTHREAD_IPC_reply(JMESSAGE* message);
+int JTHREAD_IPC_reply(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread, void* message);
 
 
 
@@ -52,9 +54,9 @@ JMESSAGE_QUEUE_DIR* JMESSAGE_QUEUE_DIR_new(void);
 /*
 
 */
-int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread);
+int JMESSAGE_QUEUE_DIR_new_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread);
 
-JMESSAGE_QUEUE* JMESSAGE_QUEUE_DIR_get_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t* thread);
+JMESSAGE_QUEUE* JMESSAGE_QUEUE_DIR_get_queue(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread);
 
 #endif
 
