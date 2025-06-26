@@ -66,6 +66,12 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread, void* mess
         return 1;
     }
 
+    JMESSAGE_QUEUE* own_queue = JMESSAGE_QUEUE_DIR_get_queue(queue_dir, pthread_self());
+    if (!own_queue) {
+        printf("JTHREAD_IPC_send: sending thread must have its own queue.\n");
+        return 1;
+    }
+
     JMESSAGE_QUEUE* queue = JMESSAGE_QUEUE_DIR_get_queue(queue_dir, thread);
     if (!queue) {
         printf("JTHREAD_IPC_send: Thread's queue does not exist.\n");
