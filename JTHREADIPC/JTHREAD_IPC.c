@@ -102,12 +102,13 @@ int JTHREAD_IPC_send(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread, void* mess
         printf("whoops.");
     }
     queue->num_messages++;
+    pthread_cond_signal(&queue->mq_cond);
     pthread_mutex_unlock(&queue->mq_tex);
 
 
     /* then sleep*/
     pthread_mutex_lock(&own_queue->mq_tex);
-    if (queue->num_messages == 0) {
+    if (own_queue->num_messages == 0) {
        pthread_cond_wait(&own_queue->mq_cond, &own_queue->mq_tex);
     }
     pthread_mutex_unlock(&own_queue->mq_tex);
@@ -148,6 +149,7 @@ int JTHREAD_IPC_reply(JMESSAGE_QUEUE_DIR* queue_dir, pthread_t thread, void* mes
         printf("whoops.");
     }
     queue->num_messages++;
+    pthread_cond_signal(&queue->mq_cond);
     pthread_mutex_unlock(&queue->mq_tex);
 
     return 0;
@@ -176,10 +178,12 @@ JMESSAGE* JTHREAD_IPC_get_message(JMESSAGE_QUEUE_DIR* queue_dir) {
     JMESSAGE* message;
     pthread_mutex_lock(&own_queue->mq_tex);
     if (own_queue->num_messages == 0) {
-        pthread_cond_wait(&own_queue->mq_cond, NULL);
+        message = NULL;
     }
-    message = (JMESSAGE*) JLIST_pop(own_queue->list);
-    own_queue->num_messages--;
+    else {
+        message = (JMESSAGE*) JLIST_pop(own_queue->list);
+        own_queue->num_messages--;
+    }
     pthread_mutex_unlock(&own_queue->mq_tex);
     return message;
 }
@@ -212,7 +216,12 @@ void* test1_send(void*) {
     strcpy(message, "hello t1");
     JTHREAD_IPC_send(queue_dir, test2, (void*) message);
     JMESSAGE* mes = JTHREAD_IPC_get_message(queue_dir);
-    printf("%s\n", (char*) mes->message);
+    if (!mes) {
+        printf("t1 message is null\n");
+    }
+    else {
+        printf("%s\n", (char*) mes->message);
+    }
 }
 
 void* test2_send(void* id) {
@@ -222,7 +231,12 @@ void* test2_send(void* id) {
     JTHREAD_IPC_send(queue_dir, (pthread_t) id, (void*) message);
 
     JMESSAGE* mes = JTHREAD_IPC_get_message(queue_dir);
-    printf("%s\n", (char*) mes->message);
+    if (!mes) {
+        printf("t2 message is null\n");
+    }
+    else {
+        printf("%s\n", (char*) mes->message);
+    }
 
     JTHREAD_IPC_reply(queue_dir, test1, (void*) message);
 }
@@ -238,7 +252,7 @@ int main(void) {
     JMESSAGE_QUEUE_DIR_new_queue(queue_dir, test2);
    
     queue_dir->started = 1;
-    pthread_cond_broadcast(&queue_dir->init_cond);
+    pthread_cond_signal(&queue_dir->init_cond);
     pthread_mutex_unlock(&queue_dir->init_tex);
     
    // pthread_join(test1, NULL);
