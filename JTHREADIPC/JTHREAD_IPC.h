@@ -25,7 +25,14 @@ typedef struct JMESSAGE_QUEUE {
 } JMESSAGE_QUEUE;
 
 
-typedef JHASHMAP JMESSAGE_QUEUE_DIR;
+//typedef JHASHMAP JMESSAGE_QUEUE_DIR;
+
+typedef struct JMESSAGE_QUEUE_DIR {
+    JHASHMAP* map;
+    pthread_mutex_t init_tex;
+    pthread_cond_t init_cond;
+    int started;
+} JMESSAGE_QUEUE_DIR;
 
 /*
  * Sends a message to the thread of this index in the thread table. Blocks, so
