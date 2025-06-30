@@ -1,4 +1,5 @@
 #include <JVEC.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,7 +13,7 @@ JVEC* JVEC_new() {
 
     if (!vector) {
         perror("Failed to allocate new vector");
-        return 1;
+        return NULL;
     }
 
     // start off with INITIAL_CAP elements
@@ -20,7 +21,7 @@ JVEC* JVEC_new() {
     // allocation fails
     if (!array) {
         perror("Failed to allocate array memory");
-        return 1;
+        return NULL;
     }
 
     // set new array to head
@@ -32,6 +33,11 @@ JVEC* JVEC_new() {
     // starting capacity is 10
     vector->capacity = INITIAL_CAP;
 
+    //initialize synchronization variables
+    pthread_mutex_init(&vector->vec_tex, NULL);
+    pthread_cond_init(&vector->vec_cond, NULL);
+    vector->readers = 0;
+
     return vector;
 }
 
@@ -40,6 +46,17 @@ JVEC* JVEC_new() {
  * append a pointer to a heap allocated variable to the end of the vector
  */
 int JVEC_append(JVEC* vector, void* data_ptr) {
+
+    if (!vector) {
+        printf("JVEC_append: vector is NULL.\n");
+        return 1;
+    }
+
+    //modifies vector, so must wait for all readers to leave
+    pthread_mutex_lock(&vector->vec_tex);
+    if (vector->readers) {
+        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    }
 
     // set next open index to new element
     *(vector->head + vector->length) = data_ptr;
@@ -51,6 +68,7 @@ int JVEC_append(JVEC* vector, void* data_ptr) {
         JVEC_grow(vector);
     }
 
+    pthread_mutex_unlock(&vector->vec_tex);
     return 0;
 }
 

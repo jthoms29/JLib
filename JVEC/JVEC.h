@@ -2,6 +2,7 @@
 #define JVEC_H
 
 #include <stdlib.h>
+#include <pthread.h>
 
 #define INITIAL_CAP 10
 
@@ -14,6 +15,12 @@ typedef struct JVEC {
 
     // the current capacity of the vector
     size_t capacity;
+
+    // thread synchronization variables
+    pthread_mutex_t vec_tex;
+    pthread_cond_t vec_cond;
+    int readers;
+
 } JVEC;
 
 /*
@@ -34,7 +41,7 @@ int JVEC_prepend(JVEC *vector, void* data_ptr);
 
 /*
  * add a pointer to a heap allocated variable to a valid index of the vector. If
- * an element already exists there, it is moved forward. If not (the first open posisition),
+ * an element already exists there, it is moved forward. If not (the first open position),
  * it is simply appended like normal.
  */
 int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index);
