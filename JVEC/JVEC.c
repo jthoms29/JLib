@@ -1,10 +1,35 @@
 #include <JVEC.h>
 #include <pthread.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
 
+static int JVEC_grow(JVEC* vector) {
+    size_t new_capacity = vector->capacity * 2;
+
+
+    void** new_head = (void**) realloc(vector->head, new_capacity* sizeof(void*));
+    if (!new_head) {
+        perror("Failed to resize vector.");
+        return 1;
+    }
+
+    vector->head = new_head;
+    vector->capacity = new_capacity;
+    return 0;
+}
+
+static int JVEC_shrink(JVEC* vector) {
+    size_t new_capacity = vector->capacity / 2;
+    printf("%ld new cap %ld\n", vector->capacity, new_capacity);
+
+    void ** new_head = (void**) realloc(vector->head, new_capacity * sizeof(void*));
+    if (!new_head) {
+        perror("Failed to resize vector");
+        return 1;
+    }
+
+    vector->head = new_head;
+    vector->capacity = new_capacity;
+    return 0;
+}
 /*
  * initialize a new JVEC. Returns a reference to the heap allocated vector.
  */
@@ -78,8 +103,15 @@ int JVEC_append(JVEC* vector, void* data_ptr) {
  */
 int JVEC_prepend(JVEC* vector, void* data_ptr) {
 
-    size_t i;
+
+    //modifies vector, so must wait for all readers to leave
+    pthread_mutex_lock(&vector->vec_tex);
+    if (vector->readers) {
+        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    }
+
     // the index vector->length is one after the final element
+    size_t i;
     for (i = vector->length; i > 0; i--) {
         // move previous element forward to current index
         *(vector->head + i) = *(vector->head + i-1);
@@ -93,6 +125,7 @@ int JVEC_prepend(JVEC* vector, void* data_ptr) {
         JVEC_grow(vector);
     }
 
+    pthread_mutex_unlock(&vector->vec_tex);
     return 0;
 }
 
@@ -134,7 +167,7 @@ int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index) {
 void* JVEC_pop(JVEC* vector) {
 
     if (vector->length == 0) {
-        return 1;
+        return NULL;
     }
 
     void* item = *(vector->head + vector->length - 1);
@@ -147,143 +180,31 @@ void* JVEC_pop(JVEC* vector) {
     return item;
 }
 
-void* JVEC_index(JVEC* vector, size_t index) {
+void* JVEC_get_at(JVEC* vector, size_t index) {
+
+    // function only reads from vector, multiple threads can do this at a time.
+    pthread_mutex_lock(&vector->vec_tex);
+    vector->readers++;
+    pthread_mutex_unlock(&vector->vec_tex);
+
+    void* ret;
+
     if (index >= vector->length) {
         perror("Index out of bounds\n");
-        return 1;
+        ret = NULL;
+    }
+    else {
+        ret =  *(vector->head + index);
     }
 
-    return *(vector->head + index);
+    pthread_mutex_lock(&vector->vec_tex);
+    vector->readers--;
+    //if this was the last reader, wake up a possibly sleeping writer
+    if (vector->readers == 0) {
+        pthread_cond_signal(&vector->vec_cond);
+    }
+    pthread_mutex_unlock(&vector->vec_tex);
+
+    return ret;
 }
 
-int JVEC_grow(JVEC* vector) {
-    size_t new_capacity = vector->capacity * 2;
-
-
-    void** new_head = (void**) realloc(vector->head, new_capacity* sizeof(void*));
-    if (!new_head) {
-        perror("Failed to resize vector.");
-        return 1;
-    }
-
-    vector->head = new_head;
-    vector->capacity = new_capacity;
-    return 0;
-}
-
-int JVEC_shrink(JVEC* vector) {
-    size_t new_capacity = vector->capacity / 2;
-    printf("%ld new cap %ld\n", vector->capacity, new_capacity);
-
-    void ** new_head = (void**) realloc(vector->head, new_capacity * sizeof(void*));
-    if (!new_head) {
-        perror("Failed to resize vector");
-        return 1;
-    }
-
-    vector->head = new_head;
-    vector->capacity = new_capacity;
-    return 0;
-}
-
-
-int main(void) {
-    char* str1 = (char*) malloc(sizeof(char) * 6);
-    strncpy(str1, "hello", 6);
-
-    char* str2 = (char*) malloc(sizeof(char) * 14);
-    strncpy(str2, "Second string", 14);
-
-    char* str3 = (char*) malloc(sizeof(char*) * 20);
-    strncpy(str3, "string number three", 20);
-
-    /* JVEC_new */
-    JVEC* test1 = JVEC_new();
-
-    if (!test1) {
-        printf("Failed to allocate vector\n");
-    }
-    if (test1->capacity != INITIAL_CAP) {
-        printf("init: Incorrect capacity\n");
-    }
-    if (test1->length != 0) {
-        printf("init: length should be 0");
-    }
-
-
-    /* JVEC_append*/
-
-    // append 1
-    JVEC_append(test1, str1);
-    if (test1->capacity != INITIAL_CAP) {
-        printf("append 1: Incorrect capacity\n");
-    }
-    if (test1->length != 1) {
-        printf("append 1: length should be 1");
-    }
-    printf("append 1: Should be 'hello': %s\n", ((char*) test1->head[0]));
-
-    // append 2
-    JVEC_append(test1, str2);
-    if (test1->capacity != INITIAL_CAP) {
-        printf("append 2: Incorrect capacity\n");
-    }
-    if (test1->length != 2) {
-        printf("append 2: length should be 1");
-    }
-    printf("append 2: Should be 'hello', 'Second string' : ");
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) test1->head[i]);
-    }
-    printf("\n");
-
-    /* JVEC_prepend */
-    //prepend 1
-    JVEC_prepend(test1, str2);
-    if (test1->capacity != INITIAL_CAP) {
-        printf("prepend 1: Incorrect capacity\n");
-    }
-    if (test1->length != 3) {
-        printf("prepend 1: length should be 3");
-    }
-    printf("prepend 1: Should be 'Second string, 'hello', 'Second string' : ");
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) test1->head[i]);
-    }
-    printf("\n");
-
-
-    /* JVEC_insert_at */
-    //insert_at 1
-    JVEC_insert_at(test1, str3, 1);
-    if (test1->capacity != INITIAL_CAP) {
-        printf("insert_at 1: Incorrect capacity\n");
-    }
-    if (test1->length != 4) {
-        printf("insert_at 1: length should be 4");
-    }
-    printf("insert_at 1: Should be 'Second string', 'string number three', 'hello', 'Second string' : ");
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) test1->head[i]);
-    }
-    printf("\n");
-
-
-    clock_t t1 = clock();
-    for (size_t i = 0; i < 1000000; i++) {
-        JVEC_append(test1, str3);
-    }
-    t1 = clock() - t1;
-
-    printf("million appends: %ld\n", t1);
-
-    t1 = clock();
-    char* testspeed;
-    for (size_t i = 0; i < test1->length; i++) {
-        testspeed = (char*) test1->head[i];
-    }
-
-    t1 = clock() - t1;
-
-    printf("million reads: %ld\n", t1);
-}
