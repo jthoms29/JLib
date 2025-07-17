@@ -33,7 +33,7 @@ static int JVEC_shrink(JVEC* vector) {
 /*
  * initialize a new JVEC. Returns a reference to the heap allocated vector.
  */
-JVEC* JVEC_new() {
+JVEC* JVEC_new( void (*item_free_func)(void* item) ) {
     JVEC* vector = (JVEC*) calloc(sizeof(JVEC), 1);
 
     if (!vector) {
@@ -57,6 +57,8 @@ JVEC* JVEC_new() {
 
     // starting capacity is 10
     vector->capacity = INITIAL_CAP;
+
+    vector->free_func = item_free_func;
 
     //initialize synchronization variables
     pthread_mutex_init(&vector->vec_tex, NULL);
@@ -206,5 +208,32 @@ void* JVEC_get_at(JVEC* vector, size_t index) {
     pthread_mutex_unlock(&vector->vec_tex);
 
     return ret;
+}
+
+long JVEC_len(JVEC* vector) {
+    if (vector == NULL) {
+        printf("JVEC_len: vector is NULL\n");
+        return -1;
+    }
+
+    pthread_mutex_lock(&vector->vec_tex);
+    vector->readers++;
+    pthread_mutex_unlock(&vector->vec_tex);
+
+    long len = vector->length;
+
+    pthread_mutex_lock(&vector->vec_tex);
+    vector->readers--;
+    if (vector->readers == 0) {
+        pthread_cond_signal(&vector->vec_cond);
+    }
+    pthread_mutex_unlock(&vector->vec_tex);
+
+    return len;
+}
+
+
+void JVEC_free(JVEC *vector) {
+
 }
 

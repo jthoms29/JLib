@@ -26,6 +26,12 @@ typedef struct JVEC {
     /// The current capacity of the vector
     size_t capacity;
 
+
+    /// Function that is passed to data structure upon initialization; frees the datatype held
+    /// by the vector
+    void (*free_func)(void* item);
+
+
     /// Mutex variable used to access the vector in each function
     pthread_mutex_t vec_tex;
 
@@ -43,8 +49,10 @@ typedef struct JVEC {
 
 /**
  * Initializes a new JVEC. Returns a reference to the heap allocated vector.
+ * \param[in] item_free_func Pointer to function that frees datatype held by this vector
+ * \return Pointer to new vector on success, NULL on failure
  */
-JVEC* JVEC_new(void);
+JVEC* JVEC_new( void (*item_free_func)(void* item) );
 
 
 /**
@@ -97,8 +105,11 @@ int JVEC_remove_at(JVEC *vector, void* data_ptr);
  */
 long JVEC_len(JVEC* vector);
 
-
-int JVEC_free(JVEC* vector);
+/**
+ * Free the specified JVEC. Uses free function passed in on intitialization.
+ * \param[in] vector A pointer to the JVEC you wish to free
+ */
+void JVEC_free(JVEC* vector);
 
 
 #endif
