@@ -105,6 +105,10 @@ int JVEC_append(JVEC* vector, void* data_ptr) {
  */
 int JVEC_prepend(JVEC* vector, void* data_ptr) {
 
+    if (!vector) {
+        printf("JVEC_prepend: vector is NULL.\n");
+        return 1;
+    }
 
     //modifies vector, so must wait for all readers to leave
     pthread_mutex_lock(&vector->vec_tex);
@@ -139,9 +143,21 @@ int JVEC_prepend(JVEC* vector, void* data_ptr) {
  */
 int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index) {
 
+    if (!vector) {
+        printf("JVEC_insert_at: vector is NULL.\n");
+        return 1;
+    }
+
+    //modifies vector, so must wait for all readers to leave
+    pthread_mutex_lock(&vector->vec_tex);
+    if (vector->readers) {
+        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    }
+
     // if the index isn't somewhere in the middle or the first open position
     if (index > vector->length) {
-        perror("Index out of bounds\n");
+        perror("JVEC_insert_at: Index out of bounds\n");
+        pthread_mutex_unlock(&vector->vec_tex);
         return 1;
     }
 
@@ -156,29 +172,48 @@ int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index) {
     // insert new element at specified index
     *(vector->head+index) = data_ptr;
 
-    vector->length+=1;
+    vector->length++;
 
     //grow vector if needed
     if (vector->length == vector->capacity) {
         JVEC_grow(vector);
     }
+    
+    pthread_mutex_unlock(&vector->vec_tex);
 
     return 0;
 }
 
+
 void* JVEC_pop(JVEC* vector) {
 
-    if (vector->length == 0) {
+    if (!vector) {
+        printf("JVEC_pop: vector is NULL.\n");
         return NULL;
     }
 
+    //modifies vector, so must wait for all readers to leave
+    pthread_mutex_lock(&vector->vec_tex);
+    if (vector->readers) {
+        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    }
+
+
+    if (vector->length == 0) {
+        pthread_mutex_unlock(&vector->vec_tex);
+        return NULL;
+    }
+
+    // get the last item
     void* item = *(vector->head + vector->length - 1);
     vector->length--;
 
+    //if the vector has lost enough elements, shrink memory allocated to it.
     if (vector->length == vector->capacity/2) {
         JVEC_shrink(vector);
     }
 
+    pthread_mutex_unlock(&vector->vec_tex);
     return item;
 }
 
@@ -234,6 +269,25 @@ long JVEC_len(JVEC* vector) {
 
 
 void JVEC_free(JVEC *vector) {
+    if (!vector) {
+        printf("JVEC_free: vector is NULL.\n");
+        return;
+    }
+
+    //modifies vector, so must wait for all readers to leave
+    pthread_mutex_lock(&vector->vec_tex);
+    if (vector->readers) {
+        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    }
+
+    //free each item in the vector
+    size_t i;
+    for (i=0; i < vector->length; i++) {
+        vector->free_func(vector->head[i]);
+        vector->head[i] = NULL;
+    }
+    //free the array
+    free(vector->head);
 
 }
 
