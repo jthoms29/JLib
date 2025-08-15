@@ -8,7 +8,7 @@ OBJ_DIR=build/$(PLATFORM)/obj
 LIB_DIR=build/$(PLATFORM)/lib
 BIN_DIR=build/$(PLATFORM)/bin
 
-BINARIES = JLIST
+BINARIES = test
 all: $(BINARIES)
 
 clean:
@@ -30,9 +30,12 @@ $(OBJ_DIR)/JLIST.o: JLIST.c | $(OBJ_DIR)
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) JLIST.c -I. -o $(OBJ_DIR)/JLIST.o
 
 
-$(BIN_DIR)/JLIST: $(OBJ_DIR)/JLIST.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JLIST.o -o $(BIN_DIR)/JLIST
+$(OBJ_DIR)/test.o: test.c | $(OBJ_DIR)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) test.c -I. -o $(OBJ_DIR)/test.o
+
+$(BIN_DIR)/test: $(OBJ_DIR)/test.o $(OBJ_DIR)/JLIST.o | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(OBJ_DIR)/test.o $(OBJ_DIR)/JLIST.o -o $(BIN_DIR)/test
 
 
-JLIST: $(BIN_DIR)/JLIST
-	ln -sf $(BIN_DIR)/JLIST JLIST
+test: $(BIN_DIR)/test
+	ln -sf $(BIN_DIR)/test test

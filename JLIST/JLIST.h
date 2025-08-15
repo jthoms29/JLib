@@ -1,11 +1,15 @@
 #ifndef JLIST_H
 #define JLIST_H
 
+
+///@file JLIST.h
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
-/*
- * Implementation of a doubly linked list.
+
+/** 
+ * Node that make up the body of the linked list
  */
 typedef struct JNODE {
 
@@ -20,8 +24,11 @@ typedef struct JNODE {
 } JNODE;
 
 
+/**
+ * The list data structure
+ */
 typedef struct JLIST {
-    // index of the first node in list
+    /// pointer to the first node in the list
     JNODE* head;
 
     // index of the last node in the list
@@ -33,6 +40,10 @@ typedef struct JLIST {
     // the current length of the list 
     size_t length;
 
+    /// Function that is passed to data structure upon initialization; frees the datatype held
+    /// by the vector
+    void (*free_func)(void* item);
+
     // thread sync variables. Only one thread will be allowed to modify
     // the list at a time.
     pthread_mutex_t list_tex;
@@ -42,7 +53,7 @@ typedef struct JLIST {
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
-JLIST* JLIST_new(void);
+JLIST* JLIST_new( void (*item_free_func)(void* item) );
 
 /*
  * append a pointer to a heap allocated variable to the end of the list
