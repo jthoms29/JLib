@@ -77,11 +77,17 @@ int main(void) {
         printf("insert_at 1: length should be 4");
     }
     walker = test1->head;
-    printf("insert 1: Should be 'Second string', 'string number three', 'hello', 'Second string' : ");
+    printf("insert 1: Should be 'Second string', 'hello', 'string number three', 'Second string' : ");
     for (size_t i=0; i < test1->length; i++) {
         printf("%s, ", (char*) walker->item);
         walker = walker->next;
     }
     printf("\n");
-
+    printf("    backwards: ");
+    walker = test1->tail;
+    for (size_t i= test1->length; i > 0; i--) {
+        printf("%s, ", (char*) walker->item);
+        walker = walker->prev;
+    }
+    printf("\n");
 }

@@ -11,7 +11,7 @@ int main(void) {
     strncpy(str3, "string number three", 20);
 
     /* JVEC_new */
-    JVEC* test1 = JVEC_new();
+    JVEC* test1 = JVEC_new(free);
 
     if (!test1) {
         printf("Failed to allocate vector\n");
@@ -80,6 +80,20 @@ int main(void) {
         printf("%s, ", (char*) test1->head[i]);
     }
     printf("\n");
+
+    /* JVEC_get_at*/
+    //get_at 1
+    char* gotten_at = JVEC_get_at(test1, 2);
+    printf("Should be 'hello': %s\n", gotten_at);
+
+
+    /* JVEC_pop*/
+
+
+
+
+
+
 
 
     clock_t t1 = clock();

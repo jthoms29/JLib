@@ -8,7 +8,7 @@ OBJ_DIR=build/$(PLATFORM)/obj
 LIB_DIR=build/$(PLATFORM)/lib
 BIN_DIR=build/$(PLATFORM)/bin
 
-BINARIES = main
+BINARIES = test
 all: $(BINARIES)
 
 clean:
@@ -34,13 +34,13 @@ $(BIN_DIR)/JVEC: $(OBJ_DIR)/JVEC.o | $(BIN_DIR)
 	$(CC) $(CFLAGS) $(OBJ_DIR)/JVEC.o -o $(BIN_DIR)/JVEC
 
 
-$(OBJ_DIR)/main.o: main.c | $(OBJ_DIR)
-	$(CC) -c $(CFLAGS) $(CPPFLAGS) main.c -I. -o $(OBJ_DIR)/main.o
+$(OBJ_DIR)/test.o: test.c | $(OBJ_DIR)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) test.c -I. -o $(OBJ_DIR)/test.o
 
 
-$(BIN_DIR)/main: $(OBJ_DIR)/JVEC.o  $(OBJ_DIR)/main.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JVEC.o $(OBJ_DIR)/main.o -o $(BIN_DIR)/main
+$(BIN_DIR)/test: $(OBJ_DIR)/JVEC.o  $(OBJ_DIR)/test.o | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(OBJ_DIR)/JVEC.o $(OBJ_DIR)/test.o -o $(BIN_DIR)/test
 
 
-main: $(BIN_DIR)/main
-	ln -sf $(BIN_DIR)/main main
+test: $(BIN_DIR)/test
+	ln -sf $(BIN_DIR)/test test

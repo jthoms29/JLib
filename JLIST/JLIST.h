@@ -106,7 +106,7 @@ void* JLIST_get(JLIST* list);
 
 size_t JLIST_len(JLIST* list);
 
-int JLIST_free(JLIST* list);
+void JLIST_free(JLIST* list);
 
 
 

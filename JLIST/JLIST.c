@@ -5,12 +5,12 @@
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
-JLIST* JLIST_new(void (*item_free_func)(void* item) ) {
+JLIST* JLIST_new( void (*item_free_func)(void* item) ) {
 
     // allocate a new list
     JLIST* list = (JLIST*) calloc(1,sizeof(JLIST));
     if (!list) {
-        perror("Failed to allocate list");
+        perror("Failed to allocate list:");
         return NULL;
     }
 
@@ -270,4 +270,26 @@ void* JLIST_get(JLIST* list) {
 
     pthread_mutex_unlock(&list->list_tex);
     return item;
+}
+
+
+void JLIST_free(JLIST* list) {
+    if (list == NULL) {
+        printf("JLIST_free: list is NULL.\n");
+    }
+
+    JNODE* walker = list->head;
+    JNODE* next;
+
+    //free the node's item and the node itself, then move on to the next one
+    while (walker) {
+        list->free_func(walker->item);
+        next = walker->next;
+        free(walker);
+        walker = next;
+    }
+
+    pthread_mutex_destroy(&list->list_tex);
+    free(list);
+    return 0;
 }

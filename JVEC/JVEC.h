@@ -89,6 +89,12 @@ int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index);
  */
 void* JVEC_get_at(JVEC* vector, size_t index);
 
+/**
+ * Remove the last element in the vector and return it.
+ * \param[out] vector A pointer to a previously allocated JVEC
+ * \return A pointer to the former last item in the vector on success, NULL on failure.
+ */
+void* JVEC_pop(JVEC* vector);
 
 /**
  * Remove the element residing at the given index in the vector.

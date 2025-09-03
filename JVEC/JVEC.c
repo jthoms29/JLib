@@ -288,6 +288,7 @@ void JVEC_free(JVEC *vector) {
     }
     //free the array
     free(vector->head);
-
+    vector->head = NULL;
+    return;
 }
 
