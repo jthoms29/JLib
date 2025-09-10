@@ -101,8 +101,11 @@ long JHASHMAP_quadradic_probe_get(JHASHMAP* map, void* key, long index) {
 
 
 int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
-    double load_factor;
-    long index;
+
+    if (map == NULL) {
+        printf("JHASHMAP_add: map is NULL.\n");
+        return 1;
+    }
 
     pthread_mutex_lock(&map->map_tex);
 
@@ -114,7 +117,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
 
     /* get index from key */
     retry:
-    index = map->hash_func(key, map->capacity);
+    long index = map->hash_func(key, map->capacity);
 
     // this space is already occupied. Use quadratic probing to find an empty one
     if (map->vector[index].in_use) {
@@ -144,7 +147,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     map->occupied++;
 
     /* If the load factor exceeds .75, increase the size of the table*/
-    load_factor = (double) map->occupied / (double) map->capacity;
+    double load_factor = (double) map->occupied / (double) map->capacity;
 
     if (load_factor > 0.75) {
         grow_table(map);
