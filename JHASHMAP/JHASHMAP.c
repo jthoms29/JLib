@@ -73,8 +73,11 @@ long JHASHMAP_quadratic_probe(JHASHMAP* map, void* key, long index) {
  * identical key is already in the map, it is replaced.
  */
 int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
-    double load_factor;
-    long index;
+
+    if (map == NULL) {
+        printf("JHASHMAP_add: map is NULL.\n");
+        return 1;
+    }
 
     if (map == NULL) {
         printf("JHASHMAP_add: map is NULL.\n");
@@ -92,6 +95,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         pthread_cond_wait(&map->map_cond, &map->map_tex);
     }
 
+    long index;
     /* Loop here so index retrieval can be re-attempted if hashmap needs to be resized. */
     for(;;) {
         /* get index from key */
@@ -122,7 +126,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     map->occupied++;
 
     /* If the load factor exceeds .75, increase the size of the table*/
-    load_factor = (double) map->occupied / (double) map->capacity;
+    double load_factor = (double) map->occupied / (double) map->capacity;
 
     if (load_factor > 0.75) {
         grow_table(map);
