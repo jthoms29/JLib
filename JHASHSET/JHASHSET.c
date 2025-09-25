@@ -125,7 +125,7 @@ int JHASHSET_add(JHASHSET* set, void* value) {
         load_factor = (double) set->occupied / (double) set->capacity;
 
         if (load_factor > 0.75) {
-            grow_table(set);
+            grow_set(set);
         }
     }
 
@@ -134,7 +134,7 @@ int JHASHSET_add(JHASHSET* set, void* value) {
 }
 
 
-void* JHASHSET_remove(JHASHSET* set, void* value) {
+int JHASHSET_remove(JHASHSET* set, void* value) {
     if (set == NULL) {
         printf("JHASHSET_get: set is NULL.\n");
         return NULL;
@@ -150,6 +150,8 @@ void* JHASHSET_remove(JHASHSET* set, void* value) {
     }
 
 
+    int ret;
+
     /* Get the index from the supplied value*/
     long index = set->hash_func(value, set->capacity);
     /* If the values match, this is the index where the value should be removed*/
@@ -163,10 +165,12 @@ void* JHASHSET_remove(JHASHSET* set, void* value) {
         set->vector[index].value = NULL;
         set->vector[index].in_use = false;
         set->vector[index].previously_in_use = true;
+        ret = 0;
     }
+    else {ret = 1;}
 
     pthread_mutex_unlock(&set->set_tex);
-    return 0;
+    return ret;
 }
 
 bool JHASHSET_has(JHASHSET* set, void* value) {
@@ -217,7 +221,7 @@ bool JHASHSET_has(JHASHSET* set, void* value) {
 }
 
 
-int grow_table(JHASHSET* set) {
+int grow_set(JHASHSET* set) {
     long i, old_capacity, new_capacity;
     JHASHSET_ENTRY* old_vector;
    
@@ -228,7 +232,7 @@ int grow_table(JHASHSET* set) {
 
     /* check for overflow*/
     if (new_capacity / 2 != old_capacity) {
-        printf("Cannot grow table anymore");
+        printf("Cannot grow set anymore");
         return 1;
     }
 
@@ -242,7 +246,7 @@ int grow_table(JHASHSET* set) {
     set->occupied = 0;
     set->vector = new_vector;
 
-    /* Rehash all vector elements from the original table into the new one*/
+    /* Rehash all vector elements from the original set into the new one*/
     for(i = 0; i < old_capacity; i++) {
         if (old_vector[i].in_use) {
             void* old_value = old_vector[i].value;

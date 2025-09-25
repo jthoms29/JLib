@@ -1,6 +1,5 @@
 
 #include <JHASHMAP.h>
-#include <pthread.h>
 
 JHASHMAP* JHASHMAP_new(long (*hash_func) (void* key, size_t map_capacity),
 bool (*key_compare_func) (void* key1, void* key2)) {
@@ -12,7 +11,7 @@ bool (*key_compare_func) (void* key1, void* key2)) {
     }
 
     /* allocate the hashmap's vector */
-    JHASHMAP_ENTRY* new_vector = (JHASHMAP_ENTRY*) calloc(sizeof(JHASHMAP_ENTRY), INITIAL_CAPACITY);
+    JHASHMAP_ENTRY* new_vector = (JHASHMAP_ENTRY*) calloc(INITIAL_CAPACITY, sizeof(JHASHMAP_ENTRY));
 
     if (!new_vector) {
         perror("error allocating hash map's vector");
@@ -51,7 +50,6 @@ long JHASHMAP_quadratic_probe(JHASHMAP* map, void* key, long index) {
 
         /* found an empty index. return it */
         if (map->vector[new_index].in_use ==  false) {
-            /*printf("%d\n",p_j);*/
             break;
         }
         /* check if occupied space has same key. If so, the index can be returned*/
@@ -82,6 +80,10 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         printf("JHASHMAP_add: map is NULL.\n");
         return 1;
     }
+    if (key == NULL) {
+        printf("JHASHMAP_add: key is NULL.\n");
+        return 1;
+    }
 
     pthread_mutex_lock(&map->map_tex);
     /* If there are any threads currently reading this hashmap, no modifications may be done.
@@ -90,22 +92,30 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         pthread_cond_wait(&map->map_cond, &map->map_tex);
     }
 
-    retry:
-    /* get index from key */
-    index = map->hash_func(key, map->capacity);
+    /* Loop here so index retrieval can be re-attempted if hashmap needs to be resized. */
+    for(;;) {
+        /* get index from key */
+        index = map->hash_func(key, map->capacity);
 
-    // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-    if (map->vector[index].in_use && !map->key_compare_func(key, map->vector[index].key)) {
+        // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
+        if (map->vector[index].in_use && !map->key_compare_func(key, map->vector[index].key)) {
 
-        index = JHASHMAP_quadratic_probe(map, key, index);
-        /* If the above function returns -1, a different index wasn't able to be found.
-           The size of the vector must be increased*/
-        if (index == -1) {
-            grow_table(map);
-            goto retry;
+            index = JHASHMAP_quadratic_probe(map, key, index);
+            /* If the above function returns -1, a different index wasn't able to be found.
+            The size of the vector must be increased*/
+            if (index == -1) {
+                grow_table(map);
+            }
+            else {
+                break;
+            }
+        }
+        else {
+            break;
         }
     }
 
+    /* Add value with corresponding key to map */
     map->vector[index].key = key;
     map->vector[index].value = value;
     map->vector[index].in_use = true;
@@ -124,9 +134,12 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
 
 
 void* JHASHMAP_get(JHASHMAP* map, void* key) {
-
     if (map == NULL) {
         printf("JHASHMAP_get: map is NULL.\n");
+        return NULL;
+    }
+    if (key == NULL) {
+        printf("JHASHMAP_get: key is NULL.\n");
         return NULL;
     }
 
@@ -176,6 +189,10 @@ bool JHASHMAP_has(JHASHMAP* map, void* key) {
         printf("JHASHMAP_has: map is NULL.\n");
         return false;
     }
+    if (key == NULL) {
+        printf("JHASHMAP_has: key address is NULL.\n");
+        return false;
+    }
 
     pthread_mutex_lock(&map->map_tex);
     map->readers++;
@@ -189,18 +206,19 @@ bool JHASHMAP_has(JHASHMAP* map, void* key) {
 
     /* If the keys match, return true */
     if (map->vector[index].in_use && map->key_compare_func(key, map->vector[index].key)) {
-        return true;
-    }
-
-    /* Otherwise, need to do quadratic probing*/
-    index = JHASHMAP_quadratic_probe(map, key, index);
-    
-    /* not in map */
-    if (index < 0) {
-        ret = false;
+        ret = true;
     }
     else {
-        ret = true;
+        /* Otherwise, need to do quadratic probing*/
+        index = JHASHMAP_quadratic_probe(map, key, index);
+        
+        /* not in map */
+        if (index < 0) {
+            ret = false;
+        }
+        else {
+            ret = true;
+        }
     }
 
     pthread_mutex_lock(&map->map_tex);
@@ -250,9 +268,8 @@ int grow_table(JHASHMAP* map) {
             if (map->vector[index].in_use) {
 
                 index = JHASHMAP_quadratic_probe(map, old_key, index);
-                /* If the above function returns -1, a different index wasn't able to be found.
-                The size of the vector must be increased*/
             }
+
             map->vector[index].key = old_key;
             map->vector[index].value = old_value;
             map->vector[index].in_use = true;
