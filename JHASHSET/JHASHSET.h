@@ -78,8 +78,8 @@ long JHASHSET_hash_data(JHASHSET* set, void* value);
 int grow_set(JHASHSET* set);
 
 /* TYPE SPECIFIC FUNCTIONS ################################## */
-long JHASHMAP_hash_int(void* key, size_t map_capacity);
-bool JHASHMAP_compare_int(void* key1, void* key2);
+long JHASHSET_hash_int(void* key, size_t map_capacity);
+bool JHASHSET_compare_int(void* key1, void* key2);
 
 
 #endif

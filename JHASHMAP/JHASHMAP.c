@@ -99,7 +99,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     /* Loop here so index retrieval can be re-attempted if hashmap needs to be resized. */
     for(;;) {
         /* get index from key */
-        index = map->hash_func(key, map->capacity);
+        long index = map->hash_func(key, map->capacity);
 
         // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
         if (map->vector[index].in_use && !map->key_compare_func(key, map->vector[index].key)) {

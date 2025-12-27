@@ -26,8 +26,8 @@ $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 
-$(OBJ_DIR)/JHASHMAP.o: JHASHMAP.c | $(OBJ_DIR)
-	$(CC) -c $(CFLAGS) $(CPPFLAGS) JHASHMAP.c -I. -o $(OBJ_DIR)/JHASHMAP.o
+$(OBJ_DIR)/JHASHSET.o: JHASHSET.c | $(OBJ_DIR)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) JHASHSET.c -I. -o $(OBJ_DIR)/JHASHSET.o
 
 
 $(OBJ_DIR)/test.o: test.c | $(OBJ_DIR)
@@ -35,8 +35,8 @@ $(OBJ_DIR)/test.o: test.c | $(OBJ_DIR)
 
 
 
-$(BIN_DIR)/test: $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/test.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JHASHMAP.o $(OBJ_DIR)/test.o -lm -o $(BIN_DIR)/test
+$(BIN_DIR)/test: $(OBJ_DIR)/JHASHSET.o $(OBJ_DIR)/test.o | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(OBJ_DIR)/JHASHSET.o $(OBJ_DIR)/test.o -lm -o $(BIN_DIR)/test
 
 
 test: $(BIN_DIR)/test

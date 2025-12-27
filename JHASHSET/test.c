@@ -1,19 +1,21 @@
-#include <JHASHMAP.h>
+#include <JHASHSET.h>
 
 int main(void) {
-    JHASHMAP* map = JHASHMAP_new(JHASHMAP_hash_int, JHASHMAP_compare_int);
-    int key = 3, val = 5;
-    JHASHMAP_add(map, (void*) &key, (void*) &val);
+    JHASHSET* set = JHASHSET_new(JHASHSET_hash_int, JHASHSET_compare_int);
+    int val = 5;
+    JHASHSET_add(set, (void*) &val);
    
-    void* returned_value = (JHASHMAP_get(map, (void*) &key));
-    printf("%d, %d\n", key, *((int*)returned_value));
+    int returned_value = (JHASHSET_has(set, (void*) &val));
+    printf("%d\n", returned_value);
 
     int val2 = 6;
 
-    JHASHMAP_add(map, (void*) &key, (void*) &val2);
+    JHASHSET_add(set, (void*) &val2);
 
+    int val3 = 7;
 
-    returned_value = (JHASHMAP_get(map, (void*) &key));
-    printf("%d, %d\n", key, *((int*)returned_value));
+    returned_value = (JHASHSET_has(set, (void*) &val));
+    printf("%d\n", returned_value);
+    printf("%d\n", JHASHSET_has(set, (void*) &val3));
 
 }

@@ -70,7 +70,7 @@ long JHASHSET_quadratic_probe(JHASHSET* set, void* value, long index) {
 
 /**
  * Adds specified value to the hashset using the specified value. If a value with an
- * identical value is already in the set, it is replaced.
+ * identical value is already in the set, nothing happens.
  */
 int JHASHSET_add(JHASHSET* set, void* value) {
     double load_factor;
@@ -104,7 +104,7 @@ int JHASHSET_add(JHASHSET* set, void* value) {
             /* If the above function returns -1, a different index wasn't able to be found.
             The size of the vector must be increased*/
             if (index == -1) {
-                grow_table(set);
+                grow_set(set);
             }
             else {
                 break;
@@ -137,11 +137,11 @@ int JHASHSET_add(JHASHSET* set, void* value) {
 int JHASHSET_remove(JHASHSET* set, void* value) {
     if (set == NULL) {
         printf("JHASHSET_get: set is NULL.\n");
-        return NULL;
+        return -1;
     }
     if (value == NULL) {
         printf("JHASHSET_get: value is NULL.\n");
-        return NULL;
+        return -1;
     }
 
     pthread_mutex_lock(&set->set_tex);
@@ -202,12 +202,11 @@ bool JHASHSET_has(JHASHSET* set, void* value) {
         /* Otherwise, need to do quadratic probing*/
         index = JHASHSET_quadratic_probe(set, value, index);
         
-        /* not in set */
-        if (index < 0) {
-            ret = false;
+        if (index > 0 && set->vector[index].value == value) {
+            ret = true;
         }
         else {
-            ret = true;
+            ret = false;
         }
     }
 
