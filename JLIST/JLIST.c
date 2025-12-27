@@ -5,7 +5,7 @@
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
-JLIST* JLIST_new( void (*item_free_func)(void* item) ) {
+JLIST* JLIST_new( int (*comparator)(void* e1, void* e2), void (*item_free_func)(void* item) ) {
 
     // allocate a new list
     JLIST* list = (JLIST*) calloc(1,sizeof(JLIST));
@@ -18,6 +18,7 @@ JLIST* JLIST_new( void (*item_free_func)(void* item) ) {
     list->head = NULL;
     list->tail = NULL;
     list->length = 0;
+    list->comparator = comparator;
     list->free_func = item_free_func;
     pthread_mutex_init(&list->list_tex, NULL);
 
@@ -272,6 +273,71 @@ void* JLIST_get(JLIST* list) {
     return item;
 }
 
+void* get_middle(JNODE* node) {
+    if (!node) { return node; }
+
+    JNODE* slow = node;
+    JNODE* fast = node;
+
+    while (fast->next && fast->next->next) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+    return slow;
+}
+
+
+JNODE* merge_conquer(JNODE* node1, JNODE* node2, int (*comparator)(void* e1, void* e2)) {
+    JNODE* res = NULL;
+
+    if (!node1) { return node2; }
+    if (!node2) { return node1; }
+
+    if (comparator(node1->item, node2->item) < 0) {
+        res = node1;
+        res->next = merge_conquer(res->next, node2, comparator);
+    }
+    else {
+        res = node2;
+        res->next = merge_conquer(node1, res->next, comparator);
+    }
+    return res;
+}
+
+JNODE* merge_divide(JNODE* node, int (*comparator)(void* e1, void* e2)) {
+
+    // base case: null node
+    if (!node || !node->next) {
+        return node;
+    }
+
+    // get the middle of this sublist
+    JNODE* mid = get_middle(node);
+    JNODE* mid_next = mid->next;
+
+    //split list down the middle
+    mid->next = NULL;
+
+    // sort first half
+    JNODE* list1 = merge_divide(node, comparator);
+    // sort second half
+    JNODE* list2 = merge_divide(mid_next, comparator);
+
+    // merge lists
+    JNODE* sorted = merge_conquer(list1, list2, comparator);
+
+    return sorted;
+}
+
+
+
+
+//TODO - doubly linked
+void* JLIST_sort(JLIST* list) {
+
+    list->head = merge_divide(list->head, list->comparator);
+
+}
 
 void JLIST_free(JLIST* list) {
     if (list == NULL) {

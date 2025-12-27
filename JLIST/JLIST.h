@@ -44,6 +44,8 @@ typedef struct JLIST {
     /// by the vector
     void (*free_func)(void* item);
 
+    int (*comparator)(void* e1, void* e2);
+
     // thread sync variables. Only one thread will be allowed to modify
     // the list at a time.
     pthread_mutex_t list_tex;
@@ -53,7 +55,7 @@ typedef struct JLIST {
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
-JLIST* JLIST_new( void (*item_free_func)(void* item) );
+JLIST* JLIST_new( int (*comparator)(void* e1, void* e2), void (*item_free_func)(void* item) );
 
 /*
  * append a pointer to a heap allocated variable to the end of the list
@@ -106,6 +108,8 @@ void* JLIST_get(JLIST* list);
 
 size_t JLIST_len(JLIST* list);
 
+
+void JLIST_sort(JLIST* list);
 void JLIST_free(JLIST* list);
 
 
