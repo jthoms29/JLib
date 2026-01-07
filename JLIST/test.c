@@ -1,93 +1,179 @@
 #include<JLIST.h>
 #include<stdio.h>
-#include<string.h>
+
+#include <stdlib.h>
+#include <assert.h>
+
+
+
+int int_comparator(void* a, void* b) {
+    int ia = *(int*)a;
+    int ib = *(int*)b;
+    return ia - ib;
+}
+
+int* make_int(int value) {
+    int* p = malloc(sizeof(int));
+    assert(p != NULL);
+    *p = value;
+    return p;
+}
+
+
+void test_create_and_append(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+    assert(list != NULL);
+    assert(JLIST_len(list) == 0);
+
+    JLIST_append(list, make_int(10));
+    JLIST_append(list, make_int(20));
+    JLIST_append(list, make_int(30));
+
+    assert(JLIST_len(list) == 3);
+
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 10);
+
+    JLIST_last(list);
+    assert(*(int*)JLIST_get(list) == 30);
+
+    JLIST_free(list);
+}
+
+void test_prepend(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+
+    JLIST_append(list, make_int(20));
+    JLIST_prepend(list, make_int(10));
+
+    assert(JLIST_len(list) == 2);
+
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 10);
+
+    JLIST_prepend(list, make_int(25));
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 25);
+
+    JLIST_free(list);
+}
+
+void test_insert(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+
+    JLIST_append(list, make_int(10));
+    JLIST_append(list, make_int(30));
+
+    JLIST_first(list);
+    JLIST_insert(list, make_int(20));
+
+    assert(JLIST_len(list) == 3);
+
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 10);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 20);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 30);
+
+    JLIST_free(list);
+}
+
+void test_navigation(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+
+    JLIST_append(list, make_int(1));
+    JLIST_append(list, make_int(2));
+    JLIST_append(list, make_int(3));
+
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 1);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 2);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 3);
+
+    JLIST_prev(list);
+    assert(*(int*)JLIST_get(list) == 2);
+
+    JLIST_free(list);
+}
+
+void test_pop(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+
+    JLIST_append(list, make_int(5));
+    JLIST_append(list, make_int(10));
+
+    int* val = (int*)JLIST_pop(list);
+    assert(*val == 10);
+    free(val);
+
+    assert(JLIST_len(list) == 1);
+
+    val = (int*)JLIST_pop(list);
+    assert(*val == 5);
+    free(val);
+
+    JLIST_free(list);
+}
+
+void test_sort(void) {
+    JLIST* list = JLIST_new(int_comparator, free);
+
+    JLIST_append(list, make_int(30));
+    JLIST_append(list, make_int(10));
+    JLIST_append(list, make_int(20));
+    JLIST_append(list, make_int(100));
+
+    JLIST_sort(list);
+
+    //forwards
+    JLIST_first(list);
+    assert(*(int*)JLIST_get(list) == 10);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 20);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 30);
+
+    JLIST_next(list);
+    assert(*(int*)JLIST_get(list) == 100);
+
+    //backwards
+    JLIST_last(list);
+    assert(*(int*)JLIST_get(list) == 100);
+
+    JLIST_prev(list);
+    assert(*(int*)JLIST_get(list) == 30);
+
+    JLIST_prev(list);
+    assert(*(int*)JLIST_get(list) == 20);
+
+    JLIST_prev(list);
+    assert(*(int*)JLIST_get(list) == 10);
+
+
+    JLIST_free(list);
+}
+
+/* ---------- Main ---------- */
 
 int main(void) {
-    char* str1 = (char*) malloc(sizeof(char) * 6);
-    strncpy(str1, "hello", 6);
+    printf("Running JLIST tests...\n");
 
-    char* str2 = (char*) malloc(sizeof(char) * 14);
-    strncpy(str2, "Second string", 14);
+    test_create_and_append();
+    test_prepend();
+    test_insert();
+    test_navigation();
+    test_pop();
+    test_sort();
 
-    char* str3 = (char*) malloc(sizeof(char*) * 20);
-    strncpy(str3, "string number three", 20);
-
-    JNODE* walker;
-
-    // JLIST_new 
-    JLIST* test1 = JLIST_new(free);
-
-    if (!test1) {
-        printf("Failed to allocate vector\n");
-    }
-    if (test1->length != 0) {
-        printf("init: length should be 0");
-    }
-
-
-    // JLIST_append
-
-    // append 1
-    JLIST_append(test1, str1);
-    if (test1->length != 1) {
-        printf("append 1: length should be 1");
-    }
-    printf("append 1: Should be 'hello': %s\n", ((char*) test1->head->item));
-
-    // append 2
-    JLIST_append(test1, str2);
-    if (test1->length != 2) {
-        printf("append 2: length should be 1");
-    }
-    printf("append 2: Should be 'hello', 'Second string' : ");
-    walker = test1->head;
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) walker->item);
-        walker = walker->next;
-    }
-    printf("\n");
-    // and backwards
-    printf("append 2: Should be 'Second string, 'hello' : ");
-    walker = test1->tail;
-    for (size_t i=test1->length; i > 0; i--) {
-        printf("%s, ", (char*) walker->item);
-        walker = walker->prev;
-    }
-    printf("\n");
-
-    // JLIST_prepend 
-    //prepend 1
-    JLIST_prepend(test1, str2);
-    if (test1->length != 3) {
-        printf("prepend 1: length should be 3");
-    }
-    walker = test1->head;
-    printf("prepend 1: Should be 'Second string, 'hello', 'Second string' : ");
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) walker->item);
-        walker = walker->next;
-    }
-    printf("\n");
-
-
-    // JLIST_insert 
-    //insert 1
-    JLIST_insert(test1, str3);
-    if (test1->length != 4) {
-        printf("insert_at 1: length should be 4");
-    }
-    walker = test1->head;
-    printf("insert 1: Should be 'Second string', 'hello', 'string number three', 'Second string' : ");
-    for (size_t i=0; i < test1->length; i++) {
-        printf("%s, ", (char*) walker->item);
-        walker = walker->next;
-    }
-    printf("\n");
-    printf("    backwards: ");
-    walker = test1->tail;
-    for (size_t i= test1->length; i > 0; i--) {
-        printf("%s, ", (char*) walker->item);
-        walker = walker->prev;
-    }
-    printf("\n");
+    printf("All tests passed\n");
+    return 0;
 }

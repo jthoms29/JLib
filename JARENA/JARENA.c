@@ -27,24 +27,14 @@ JARENA* JARENA_new(void) {
         return NULL;
     }
 
-    JARENA_NODE* new_node = JARENA_alloc_new_node(BLOCK_SIZE);
-    if (!new_node) {
-        free(new_arena);
-        return NULL;
-    }
 
-    new_arena->head = new_node;
-    new_arena->tail = new_node;
-    new_arena->allocated_bytes = BLOCK_SIZE;
+    new_arena->head = NULL;
+    new_arena->tail = NULL;
+    new_arena->allocated_bytes = 0;
     return new_arena;
 }
 
 byte* JARENA_alloc(JARENA* arena, size_t alloc_amount) {
-    /* Special case: TODO Will allocate large block*/
-    if (alloc_amount > BLOCK_SIZE) {
-        printf("too large");
-        return NULL;
-    }
 
     JARENA_NODE* walker = arena->head;
     while (walker) {
@@ -56,17 +46,33 @@ byte* JARENA_alloc(JARENA* arena, size_t alloc_amount) {
 
     /* No suitable free memory in existing blocks found. Must allocate a new one*/
     if (!walker) {
-        JARENA_NODE* new_node = JARENA_alloc_new_node(BLOCK_SIZE);
+        size_t new_block_size;
+        if (alloc_amount > BLOCK_SIZE) {
+            new_block_size = alloc_amount;
+        }
+        else {
+            new_block_size = BLOCK_SIZE;
+        }
+        JARENA_NODE* new_node = JARENA_alloc_new_node(new_block_size);
         if (!new_node) {
             return NULL;
         }
-        arena->tail->next = new_node;
+
+        if (!arena->head) {
+            arena->head = new_node;
+            arena->tail = new_node;
+        }
+        else {
+            arena->tail->next = new_node;
+            arena->tail = new_node;
+        }
         walker = new_node;
     }
 
     byte* mem_ret = walker->cur_block_address;
     walker->cur_block_address += alloc_amount;
 
+    arena->allocated_bytes += alloc_amount;
    
     return mem_ret;
 }
@@ -89,13 +95,4 @@ int JARENA_free(JARENA* arena) {
 
     free(arena);
     return 0;
-}
-
-int main(void) {
-    JARENA* arena = JARENA_new();
-    JARENA_NODE* test = (JARENA_NODE*) JARENA_alloc(arena, sizeof(JARENA_NODE));
-    char* test2 = (char*) JARENA_alloc(arena, sizeof(char)*4096);
-
-    JARENA_free(arena);
-    arena = NULL;
 }

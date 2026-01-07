@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <JLIST.h>
 #include <string.h>
+
 /*
  * initialize a new JLIST. Returns a reference to the heap allocated list.
  */
@@ -20,8 +21,6 @@ JLIST* JLIST_new( int (*comparator)(void* e1, void* e2), void (*item_free_func)(
     list->length = 0;
     list->comparator = comparator;
     list->free_func = item_free_func;
-    pthread_mutex_init(&list->list_tex, NULL);
-
     return list;
 }
 
@@ -40,7 +39,6 @@ int JLIST_append(JLIST* list, void* data_ptr) {
         return 1;
     }
 
-    pthread_mutex_lock(&list->list_tex);
     JNODE* new_node = (JNODE*) malloc(sizeof(JNODE));
 
     // set up default values for new node
@@ -67,7 +65,6 @@ int JLIST_append(JLIST* list, void* data_ptr) {
 
     list->length ++;
 
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -84,7 +81,6 @@ int JLIST_prepend(JLIST* list, void* data_ptr) {
         return 1;
     }
 
-    pthread_mutex_lock(&list->list_tex);
 
     // allocate a new node
     JNODE* new_node = (JNODE*) malloc(sizeof(JNODE));
@@ -105,7 +101,6 @@ int JLIST_prepend(JLIST* list, void* data_ptr) {
     list->head = new_node;
 
     list->length++;
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 
 }
@@ -124,7 +119,6 @@ int JLIST_insert(JLIST* list, void* data_ptr) {
         return 1;
     }
 
-    pthread_mutex_lock(&list->list_tex);
     JNODE* cursor = list->cur;
 
     // allocate a new node
@@ -155,7 +149,6 @@ int JLIST_insert(JLIST* list, void* data_ptr) {
 
     list->cur = new_node;
     list->length++;
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -166,7 +159,6 @@ void* JLIST_pop(JLIST* list) {
         return NULL;
     }
 
-    pthread_mutex_lock(&list->list_tex);
     /* List is empty, return nothing*/
     if (!list->tail) {
         return NULL;
@@ -182,7 +174,12 @@ void* JLIST_pop(JLIST* list) {
 
     free(old_tail);
     old_tail = NULL;
-    pthread_mutex_unlock(&list->list_tex);
+
+    list->length-=1;
+
+    if (list->length == 0) {
+        list->head = NULL;
+    }
     return item;
 }
 
@@ -197,9 +194,7 @@ int JLIST_first(JLIST* list) {
         return 1;
     }
 
-    pthread_mutex_lock(&list->list_tex);
     list->cur = list->head;
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -211,9 +206,7 @@ int JLIST_last(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
-    pthread_mutex_lock(&list->list_tex);
     list->cur = list->tail;
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -225,14 +218,12 @@ int JLIST_next(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
-    pthread_mutex_lock(&list->list_tex);
     /* If the list is empty, or if at the last item, do nothing. */
     if (!list->cur || !list->cur->next) {
         return 0;
     }
 
     list->cur = list->cur->next;
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -242,13 +233,11 @@ int JLIST_prev(JLIST* list) {
         printf("Error: List is null\n");
         return 1;
     }
-    pthread_mutex_lock(&list->list_tex);
 
     // move cursor back if previous item exists
     if (list->cur && list->cur->prev) {
         list->cur = list->cur->prev;
     }
-    pthread_mutex_unlock(&list->list_tex);
     return 0;
 }
 
@@ -260,7 +249,6 @@ void* JLIST_get(JLIST* list) {
     }
     void* item;
 
-    pthread_mutex_lock(&list->list_tex);
     /* If list is empty, return NULL*/
     if (!list->cur) {
         item = NULL;
@@ -269,7 +257,6 @@ void* JLIST_get(JLIST* list) {
         item = list->cur->item;
     }
 
-    pthread_mutex_unlock(&list->list_tex);
     return item;
 }
 
@@ -296,10 +283,12 @@ JNODE* merge_conquer(JNODE* node1, JNODE* node2, int (*comparator)(void* e1, voi
     if (comparator(node1->item, node2->item) < 0) {
         res = node1;
         res->next = merge_conquer(res->next, node2, comparator);
+        res->next->prev = res;
     }
     else {
         res = node2;
         res->next = merge_conquer(node1, res->next, comparator);
+        res->next->prev = res;
     }
     return res;
 }
@@ -317,6 +306,7 @@ JNODE* merge_divide(JNODE* node, int (*comparator)(void* e1, void* e2)) {
 
     //split list down the middle
     mid->next = NULL;
+    mid_next->prev = NULL;
 
     // sort first half
     JNODE* list1 = merge_divide(node, comparator);
@@ -332,10 +322,16 @@ JNODE* merge_divide(JNODE* node, int (*comparator)(void* e1, void* e2)) {
 
 
 
-//TODO - doubly linked
-void* JLIST_sort(JLIST* list) {
+void JLIST_sort(JLIST* list) {
 
     list->head = merge_divide(list->head, list->comparator);
+    JNODE* walker = list->head;
+
+    // may be better way to do this but I don't care
+    while (walker->next) {
+        walker = walker->next;
+    }
+    list->tail = walker;
 
 }
 
@@ -355,7 +351,9 @@ void JLIST_free(JLIST* list) {
         walker = next;
     }
 
-    pthread_mutex_destroy(&list->list_tex);
     free(list);
-    return 0;
+}
+
+size_t JLIST_len(JLIST* list) {
+    return list->length;
 }

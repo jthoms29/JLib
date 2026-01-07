@@ -13,13 +13,13 @@
  */
 typedef struct JNODE {
 
-    // address of element in node
+    /// address of element in node
     void* item;
 
-    // pointer to previous node
+    /// pointer to previous node
     struct JNODE* prev;
 
-    // pointer to next node
+    /// pointer to next node
     struct JNODE* next;
 } JNODE;
 
@@ -31,85 +31,117 @@ typedef struct JLIST {
     /// pointer to the first node in the list
     JNODE* head;
 
-    // index of the last node in the list
+    /// index of the last node in the list
     JNODE* tail;
 
-    // cursor, the current element in the list
+    /// cursor, the current element in the list
     JNODE* cur;
 
-    // the current length of the list 
+    /// the current length of the list 
     size_t length;
 
-    /// Function that is passed to data structure upon initialization; frees the datatype held
-    /// by the vector
-    void (*free_func)(void* item);
-
+    /// Function that is passed to data structure upon initialization; compares two elements held by it
     int (*comparator)(void* e1, void* e2);
 
-    // thread sync variables. Only one thread will be allowed to modify
-    // the list at a time.
-    pthread_mutex_t list_tex;
+    /// Function that is passed to data structure upon initialization; frees the datatype held by the vector
+    void (*free_func)(void* item);
 
 } JLIST;
 
-/*
- * initialize a new JLIST. Returns a reference to the heap allocated list.
+/**
+ * Initialize a new JLIST. Need to supply a function to compare items within it and to free the items. If items aren't heap allocated, item_free_func should be NULL
+ @param[in] comparator
+ @param[in] item_free_func
+ \return Pointer to a new list
  */
 JLIST* JLIST_new( int (*comparator)(void* e1, void* e2), void (*item_free_func)(void* item) );
 
-/*
- * append a pointer to a heap allocated variable to the end of the list
+/**
+ * Append a pointer to a variable to the end of the list
+ * @param[in, out] list
+ * @param[in] data
+ * \return 0 on success, anything else on failure
  */
 int JLIST_append(JLIST *list, void* data);
 
 
-/*
- * prepend a pointer to a heap allocated variable to the start of the list
+/**
+ * Prepend a pointer to a variable to the end of the list
+ * @param[in, out] list
+ * @param[in] data
+ * \return 0 on success, anything else on failure
  */
 int JLIST_prepend(JLIST* list, void* data);
 
-/*
-* insert a pointer to a heap allocated variable after the current item
-*/
+/**
+ * Insert a pointer to a variable after the item the cursor is currently on
+ * @param[in, out] list
+ * @param[in] data
+ * \return 0 on success, anything else on failure
+ */
 int JLIST_insert(JLIST* list, void* data);
 
-/*
-* remove the last item in the list
-*/
+/**
+ * Remove the last item in the list.
+ * @param[in, out] list
+ * \return The last item in the list
+ */
 void* JLIST_pop(JLIST* list);
 
-/* CURSOR FUNCTIONS $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ */
 
-/* 
- * Move to the first item in the list 
+/**
+ * Move cursor to the first item in the list 
+ * @param[in, out] list
+ * \return 0 on success, anything else on failure
  */
 int JLIST_first(JLIST* list);
 
-/* 
- * Move to the last item in the list 
+/**
+ * Move cursor to the last item in the list 
+ * @param[in, out] list
+ * \return 0 on success, anything else on failure
  */
 int JLIST_last(JLIST* list);
 
-/* 
- * Move to the next item in the list 
+/**
+ * Move cursor to the next item in the list 
+ * @param[in, out] list
+ * \return 0 on success, anything else on failure
  */
 int JLIST_next(JLIST* list);
 
-/* 
- * move to the previous item in the list 
+/**
+ * Move cursor to the previous item in the list 
+ * @param[in, out] list
+ * \return 0 on success, anything else on failure
  */
 int JLIST_prev(JLIST* list);
 
-/* 
- * get the item at the current location of the cursor 
+/**
+ * Get item at the current cursor location 
+ * @param[in] list
+ * \return The item. NULL on failure
  */
 void* JLIST_get(JLIST* list);
 
 
+/**
+ * Get the current number of items in the list
+ * @param[in] list
+ * \return Length of the list
+ */
 size_t JLIST_len(JLIST* list);
 
 
+/**
+ * Sort the list, uses comparator function passed in on creation
+ * @param[in, out] list
+ */
 void JLIST_sort(JLIST* list);
+
+/**
+ * Free each item in the list. Uses the free function passed in on creation
+ */
 void JLIST_free(JLIST* list);
 
 

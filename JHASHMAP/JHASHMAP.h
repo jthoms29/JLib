@@ -37,15 +37,6 @@ typedef struct JHASHMAP {
     /* the current capacity of the vector */
     size_t capacity;
 
-    /* SYNCHRONIZATION VARS  ******************************* */
-    pthread_mutex_t map_tex;
-
-    pthread_cond_t map_cond;
-
-    // used to keep track of current number of readers. Functions that
-    // modify the hashmap cannot be executed if this number isn't 0.
-    int readers;
-    
 
 } JHASHMAP;
 
@@ -74,14 +65,9 @@ void* JHASHMAP_get(JHASHMAP* map, void* key);
 */
 bool JHASHMAP_has(JHASHMAP* map, void* key);
    
-/*
-    Used if
-*/
-long JHASHMAP_quadradic_probe(JHASHMAP* map, void* key, size_t index, size_t capacity);
 
-long JHASHMAP_hash_data(JHASHMAP* map, void* key, void* value);
 
-int grow_table(JHASHMAP* map);
+//int grow_table(JHASHMAP* map);
 
 /* TYPE SPECIFIC FUNCTIONS ################################## */
 long JHASHMAP_hash_int(void* key, size_t map_capacity);
