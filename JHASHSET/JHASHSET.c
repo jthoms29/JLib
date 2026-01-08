@@ -1,10 +1,15 @@
 
 #include <JHASHSET.h>
 
-JHASHSET* JHASHSET_new(long (*hash_func) (void* value, size_t set_capacity),
+bool quadratic_probe(JHASHSET* set, void* value, size_t initial_index, size_t* found_index, bool search_exact);
+int grow_table(JHASHSET* set);
+
+
+
+JHASHSET* JHASHSET_new(size_t (*hash_func) (void* value, size_t set_capacity),
 bool (*value_compare_func) (void* value1, void* value2)) {
     /* Allocate a new hashset*/
-    JHASHSET* new_set = (JHASHSET*) calloc(1, sizeof(JHASHSET));
+    JHASHSET* new_set = (JHASHSET*) malloc(sizeof(JHASHSET));
     if (!new_set) {
         perror("error allocating new hashset");
         return NULL;
@@ -14,7 +19,7 @@ bool (*value_compare_func) (void* value1, void* value2)) {
     JHASHSET_ENTRY* new_vector = (JHASHSET_ENTRY*) calloc(INITIAL_CAPACITY, sizeof(JHASHSET_ENTRY));
 
     if (!new_vector) {
-        perror("error allocating hash set's vector");
+        perror("error allocating hashset's vector");
         free(new_set);
         return NULL;
     }
@@ -24,74 +29,31 @@ bool (*value_compare_func) (void* value1, void* value2)) {
     new_set->value_compare_func = value_compare_func;
     new_set->capacity = INITIAL_CAPACITY;
 
-    pthread_mutex_init(&new_set->set_tex, NULL);
-    pthread_cond_init(&new_set->set_cond, NULL);
-    new_set->readers = 0;
-
     return new_set;
 }
 
-
-long JHASHSET_quadratic_probe(JHASHSET* set, void* value, long index) {
-
-    /* offset from starting position */
-    long j = 1;
-    /* Number of checks. Will resize if reaches size of hashset*/
-    long count = 0;
-    /* quadratic output based on offset from starting position*/
-    long p_j;
-
-    size_t new_index;
-    /* check alternating offsets of perfect squares from the found index until an empty space is found*/
-    for(;;) {
-        /* the fraction in the second power is int division*/
-        p_j = pow(-1, (j-1)) *  pow(((j+1)/2), 2);
-        new_index = ((long) index + p_j) % set->capacity;
-
-        /* found an empty index. return it */
-        if (set->vector[new_index].in_use ==  false) {
-            break;
-        }
-        /* check if occupied space has same value. If so nothing should be done*/
-        if (set->value_compare_func(value, set->vector[new_index].value)) {
-            return -2;
-        }
-
-        j+=1;
-        count+=1;
-        /* Free index not found */
-        if (count == set->capacity) {
-            return -1;
-        }
-    }
-    return new_index;
+int JHASHSET_free(JHASHSET* set) {
+    free(set->vector);
+    set->vector = NULL;
+    free(set);
+    return 0;
 }
 
 
-/**
- * Adds specified value to the hashset using the specified value. If a value with an
- * identical value is already in the set, nothing happens.
+
+
+/*
+ * Adds specified value to the hashset.
  */
 int JHASHSET_add(JHASHSET* set, void* value) {
-    double load_factor;
-    long index;
-
     if (set == NULL) {
-        printf("JHASHSET_add: set is NULL.\n");
         return 1;
     }
     if (value == NULL) {
-        printf("JHASHSET_add: value is NULL.\n");
         return 1;
     }
 
-    pthread_mutex_lock(&set->set_tex);
-    /* If there are any threads currently reading this hashset, no modifications may be done.
-       this thread must wait. */
-    if (set->readers) {
-        pthread_cond_wait(&set->set_cond, &set->set_tex);
-    }
-
+    size_t index;
     /* Loop here so index retrieval can be re-attempted if hashset needs to be resized. */
     for(;;) {
         /* get index from value */
@@ -100,12 +62,13 @@ int JHASHSET_add(JHASHSET* set, void* value) {
         // this space is already occupied and doesn't have the same value. Use quadratic probing to find an empty one
         if (set->vector[index].in_use && !set->value_compare_func(value, set->vector[index].value)) {
 
-            index = JHASHSET_quadratic_probe(set, value, index);
-            /* If the above function returns -1, a different index wasn't able to be found.
-            The size of the vector must be increased*/
-            if (index == -1) {
-                grow_set(set);
+            // search for an empty index
+            if (!quadratic_probe(set, value, index, &index, false)) {
+            // If the above function returns false a different index wasn't able to be found.
+            // The size of the vector must be increased
+                grow_table(set);
             }
+
             else {
                 break;
             }
@@ -115,113 +78,98 @@ int JHASHSET_add(JHASHSET* set, void* value) {
         }
     }
 
-    if (index != -2) {
-        /* Add value with corresponding value to set */
-        set->vector[index].value = value;
-        set->vector[index].in_use = true;
-        set->occupied++;
+    /* Add value with corresponding value to set */
+    set->vector[index].value = value;
+    set->vector[index].in_use = true;
+    set->occupied++;
 
-        /* If the load factor exceeds .75, increase the size of the table*/
-        load_factor = (double) set->occupied / (double) set->capacity;
+    /* If the load factor exceeds .75, increase the size of the table*/
+    double load_factor = (double) set->occupied / (double) set->capacity;
 
-        if (load_factor > 0.75) {
-            grow_set(set);
-        }
+    if (load_factor > 0.75) {
+        grow_table(set);
     }
-
-    pthread_mutex_unlock(&set->set_tex);
     return 0;
 }
 
 
-int JHASHSET_remove(JHASHSET* set, void* value) {
-    if (set == NULL) {
-        printf("JHASHSET_get: set is NULL.\n");
-        return -1;
-    }
-    if (value == NULL) {
-        printf("JHASHSET_get: value is NULL.\n");
-        return -1;
-    }
-
-    pthread_mutex_lock(&set->set_tex);
-    if (set->readers) {
-        pthread_cond_wait(&set->set_cond, &set->set_tex);
-    }
-
-
-    int ret;
-
-    /* Get the index from the supplied value*/
-    long index = set->hash_func(value, set->capacity);
-    /* If the values match, this is the index where the value should be removed*/
-
-    /* Otherwise, need to do quadratic probing*/
-    if (!set->value_compare_func(value, set->vector[index].value)) {
-        index = JHASHSET_quadratic_probe(set, value, index);
-    }
-
-    if (index != -1) {
-        set->vector[index].value = NULL;
-        set->vector[index].in_use = false;
-        set->vector[index].previously_in_use = true;
-        ret = 0;
-    }
-    else {ret = 1;}
-
-    pthread_mutex_unlock(&set->set_tex);
-    return ret;
-}
 
 bool JHASHSET_has(JHASHSET* set, void* value) {
-
     if (set == NULL) {
-        printf("JHASHSET_has: set is NULL.\n");
         return false;
     }
     if (value == NULL) {
-        printf("JHASHSET_has: value address is NULL.\n");
         return false;
     }
 
-    pthread_mutex_lock(&set->set_tex);
-    set->readers++;
-    pthread_mutex_unlock(&set->set_tex);
-
-
-    bool ret;
 
     /* Get index from supplied value*/
-    long index = set->hash_func(value, set->capacity);
+    size_t index = set->hash_func(value, set->capacity);
 
     /* If the values match, return true */
     if (set->vector[index].in_use && set->value_compare_func(value, set->vector[index].value)) {
-        ret = true;
-    }
-    else {
-        /* Otherwise, need to do quadratic probing*/
-        index = JHASHSET_quadratic_probe(set, value, index);
-        
-        if (index > 0 && set->vector[index].value == value) {
-            ret = true;
-        }
-        else {
-            ret = false;
-        }
+        return true;
     }
 
-    pthread_mutex_lock(&set->set_tex);
-    set->readers--;
-    if (set->readers == 0) {
-        pthread_cond_signal(&set->set_cond);
-    }
-    pthread_mutex_unlock(&set->set_tex);
-    return ret;
+    /* Otherwise, need to do quadratic probing*/
+    return quadratic_probe(set, value, index, &index, true);
+
 }
 
 
-int grow_set(JHASHSET* set) {
-    long i, old_capacity, new_capacity;
+
+/******* PRIV HELPER FUNCTIONS *********/
+
+/*
+ * Uses quadratic probing to search through the hashset, either for an empty space or an exact value
+ * @param[in] set - the hashset
+ * @param[in] value - value to search for
+ * @param[in] initial_index - index to start probing from
+ * @param[out] found_indx - reference to size_t variable to write found index to
+ * @param[in] exact_search - denotes wether to search for an empty space or an exact value
+ * \return true if valid index found, false otherwise
+ */
+bool quadratic_probe(JHASHSET* set, void* value, size_t initial_index, size_t* found_index, bool search_exact) {
+    /* offset from starting position */
+    size_t j = 1;
+    /* Number of checks. Will resize if reaches size of hashset*/
+    size_t count = 0;
+
+    /* quadratic output based on offset from starting position*/
+    long p_j;
+
+    size_t new_index;
+    /* check alternating offsets of perfect squares from the found index until an empty space is found*/
+    for(;;) {
+        /* the fraction in the second power is supposed to be int division*/
+        p_j = pow(-1, (j-1)) *  pow(((j+1)/2), 2);
+
+        new_index = (initial_index + p_j) % set->capacity;
+
+        //found an empty index. return if ok
+        if (!set->vector[new_index].in_use && !set->vector[new_index].previously_in_use) {
+            if (search_exact)  { return false; }
+            *found_index = new_index;
+            return true;
+        }
+        /* check if occupied space has same value. If so, the index can be returned*/
+        if (set->value_compare_func(value, set->vector[new_index].value)) {
+            *found_index = new_index;
+            return true;
+        }
+
+        j+=1;
+        count+=1;
+        /* Free index not found */
+        if (count == set->capacity) {
+            return false;
+        }
+    }
+}
+
+/* Increases size of hashset if load factor exceeds a certain value*/
+int grow_table(JHASHSET* set) {
+    size_t i, old_capacity, new_capacity;
     JHASHSET_ENTRY* old_vector;
    
     old_capacity = set->capacity;
@@ -231,7 +179,6 @@ int grow_set(JHASHSET* set) {
 
     /* check for overflow*/
     if (new_capacity / 2 != old_capacity) {
-        printf("Cannot grow set anymore");
         return 1;
     }
 
@@ -245,17 +192,16 @@ int grow_set(JHASHSET* set) {
     set->occupied = 0;
     set->vector = new_vector;
 
-    /* Rehash all vector elements from the original set into the new one*/
+    /* Rehash all vector elements from the original table into the new one*/
     for(i = 0; i < old_capacity; i++) {
         if (old_vector[i].in_use) {
             void* old_value = old_vector[i].value;
 
-            long index = set->hash_func(old_value, set->capacity);
+            size_t index = set->hash_func(old_value, set->capacity);
 
             // this space is already occupied and doesn't have the same value. Use quadratic probing to find an empty one
             if (set->vector[index].in_use) {
-
-                index = JHASHSET_quadratic_probe(set, old_value, index);
+                quadratic_probe(set, old_value, index, &index, false);
             }
 
             set->vector[index].value = old_value;
@@ -274,17 +220,4 @@ int grow_set(JHASHSET* set) {
 }
 
 
-
-/* TYPE SPECIFIC FUNCTIONS ########################### */
-/* int */
-long JHASHSET_hash_int(void* value, size_t set_capacity) {
-    return *((int*)value) % set_capacity;
-}
-
-bool JHASHSET_compare_int(void* value1, void* value2) {
-    int k1 = *((int*)value1);
-    int k2 = *((int*)value2);
-
-    return k1 == k2;
-}
-
+/***************************************/
