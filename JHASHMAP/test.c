@@ -8,7 +8,7 @@
 
 
 
-long string_hash(void* key, size_t map_capacity) {
+size_t string_hash(void* key, size_t map_capacity) {
     unsigned char* str = (unsigned char*)key;
     unsigned long hash = 5381;
 
@@ -16,8 +16,7 @@ long string_hash(void* key, size_t map_capacity) {
         hash = ((hash << 5) + hash) + *str;
         str++;
     }
-
-    return (long)(hash % map_capacity);
+    return (size_t)(hash % map_capacity);
 }
 
 bool string_compare(void* key1, void* key2) {
@@ -29,9 +28,15 @@ void test_create_map(void) {
     JHASHMAP* map = JHASHMAP_new(string_hash, string_compare);
     assert(map != NULL);
     assert(map->occupied == 0);
-    assert(map->capacity > 0);
-    free(map);
+    assert(map->capacity == INITIAL_CAPACITY);
+    JHASHMAP_free(map);
     printf("test_create_map passed\n");
+}
+
+void test_free(void) {
+    JHASHMAP* map = JHASHMAP_new(string_hash, string_compare);
+    assert(JHASHMAP_free(map) == 0);
+    printf("test_free passed\n");
 }
 
 void test_add_and_get(void) {
@@ -46,7 +51,7 @@ void test_add_and_get(void) {
     assert(result != NULL);
     assert(*result == 21);
 
-    free(map);
+    JHASHMAP_free(map);
     printf("test_add_and_get passed\n");
 }
 
@@ -62,7 +67,7 @@ void test_has(void) {
     assert(JHASHMAP_has(map, key1) == true);
     assert(JHASHMAP_has(map, key2) == false);
 
-    free(map);
+    JHASHMAP_free(map);
     printf("test_has passed\n");
 }
 
@@ -81,7 +86,7 @@ void test_overwrite_value(void) {
     assert(result != NULL);
     assert(*result == 20);
 
-    free(map);
+    JHASHMAP_free(map);
     printf("test_overwrite_value passed\n");
 }
 
@@ -98,13 +103,15 @@ void test_multiple_entries_and_collisions(void) {
     assert(*(int*)JHASHMAP_get(map, "b") == 2);
     assert(*(int*)JHASHMAP_get(map, "c") == 3);
 
-    free(map);
+    JHASHMAP_free(map);
     printf("test_multiple_entries_and_collisions passed\n");
 }
 
 
+
 int main(void) {
     test_create_map();
+    test_free();
     test_add_and_get();
     test_has();
     test_overwrite_value();
