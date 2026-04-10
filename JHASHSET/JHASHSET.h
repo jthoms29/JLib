@@ -1,85 +1,81 @@
-#ifndef JHASHMAP_H
-#define JHASHMAP_H
+#ifndef JHASHSET_H
+#define JHASHSET_H
 
-#include <bits/pthreadtypes.h>
+/// @file JHASHSET.h
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <pthread.h>
 
-#define INITIAL_CAPACITY 20
+#define INITIAL_CAPACITY 20 ///< Initial number of elements that can be held in set
 
 
+/**
+ * An entry in the hashset data structure. Holds value
+ */
 typedef struct JHASHSET_ENTRY {
+    /// Indicates if this entry is currently in use
     bool in_use;
+
+    /// Indicates if this entry was previously in use, needed for probing
     bool previously_in_use;
+
+    /// Value for the entry, data held
     void* value;
 } JHASHSET_ENTRY;
 
-typedef struct JHASHSET {
-    /* a pointer to a user defined hash function for whatever data-type
-     the value is */
-    long (*hash_func)(void* value, size_t map_capacity);
 
-    /* Function needed to compare values of some data type*/
+/**
+ * The hashset data structure. Holds a vector of hashset entries.
+ */
+typedef struct JHASHSET {
+    /// A pointer to a user defined hash function for whatever data-type the value is 
+    size_t (*hash_func)(void* value, size_t set_capacity);
+
+    /// Function needed to compare values of some data type
     bool (*value_compare_func)(void* value1, void* value2);
 
-    /* The array that will hold the entries*/
+    /// The array that will hold the entries
     JHASHSET_ENTRY* vector;
 
-    /* the current number of occupied indexes of the vector */
+    /// the current number of occupied indices of the vector
     size_t occupied;
 
-    /* the current capacity of the vector */
+    /// the current capacity of the vector
     size_t capacity;
-
-    /* SYNCHRONIZATION VARS  ******************************* */
-    pthread_mutex_t set_tex;
-
-    pthread_cond_t set_cond;
-
-    // used to keep track of current number of readers. Functions that
-    // modify the hashmap cannot be executed if this number isn't 0.
-    int readers;
-    
-
 } JHASHSET;
 
-/* 
-    Create a new heap allocated hashset.
-    Must supply functions to hash values and compare values
-*/
-JHASHSET* JHASHSET_new(long (*hash_func) (void* value, size_t map_capcity), bool (*value_compare_func) (void* value1, void* value2));
+/**
+ * Create a new hashset. Must supply functions to hash values and compare values
+ * @param[in] hash_func
+ * @param[in] value_compare_func
+ * \return A new heap allocated hashset
+ */
+JHASHSET* JHASHSET_new(size_t (*hash_func) (void* value, size_t set_capcity), bool (*value_compare_func) (void* value1, void* value2));
 
-/*
-    0 - success
-    TODO
-*/
+/**
+ * Frees the hashset data structure. Values should be freed by user.
+ */
+int JHASHSET_free(JHASHSET* set);
+
+/**
+ * Add a value to the hashset.
+ * @param[in, out] set
+ * @param[in] value
+ * \return 0 on success, anything else on failure
+ */
 int JHASHSET_add(JHASHSET* set, void* value);
 
-/*
-*/
-void* JHASHSET_get(JHASHSET* set, void* value);
 
-/*
-*/
+
+/**
+ * Checks if provided value is in set
+ * @param[in] set
+ * @param[in] value
+ */
 bool JHASHSET_has(JHASHSET* set, void* value);
    
-/*
-    Used if
-*/
-long JHASHSET_quadradic_probe(JHASHSET* set, void* value, size_t index, size_t capacity);
-
-long JHASHSET_hash_data(JHASHSET* set, void* value);
-
-int grow_set(JHASHSET* set);
-
-/* TYPE SPECIFIC FUNCTIONS ################################## */
-long JHASHSET_hash_int(void* key, size_t map_capacity);
-bool JHASHSET_compare_int(void* key1, void* key2);
-
 
 #endif
