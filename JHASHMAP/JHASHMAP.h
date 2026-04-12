@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 #define INITIAL_CAPACITY 128 ///< Initial number of elements that can be held in map
-#define IN_USE 0x1
+#define IN_USE 0x3
 #define TOMB   0x2
 
 /**
@@ -30,7 +30,7 @@ typedef struct JHASHMAP_ENTRY {
  */
 typedef struct JHASHMAP {
     /// A pointer to a user defined hash function for whatever data-type the key is 
-    size_t (*hash_func)(void* key, size_t map_capacity);
+    size_t (*hash_func)(void* key);
 
     /// Function needed to compare keys of some data type
     bool (*key_compare_func)(void* key1, void* key2);
@@ -51,7 +51,7 @@ typedef struct JHASHMAP {
  * @param[in] key_compare_func
  * \return A new heap allocated hashmap
  */
-JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key, size_t map_capcity), bool (*key_compare_func) (void* key1, void* key2));
+JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func) (void* key1, void* key2));
 
 /**
  * Add a key-value pair to the hashmap.

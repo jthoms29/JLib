@@ -1,12 +1,12 @@
 
 #include <JHASHMAP.h>
 
-static inline bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact);
-static inline int grow_table(JHASHMAP* map);
+bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact);
+int resize_table(JHASHMAP* map, bool grow);
 
 
 
-JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key, size_t map_capacity), bool (*key_compare_func) (void* key1, void* key2)) {
+JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func) (void* key1, void* key2)) {
     // Allocate a new hashmap
     JHASHMAP* new_map = (JHASHMAP*) calloc(1, sizeof(*new_map));
     if (!new_map) {
@@ -49,14 +49,14 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     // sorry big E.W.
     retry:
         /* get index from key */
-        index = map->hash_func(key, map->capacity);
+        index = map->hash_func(key) % map->capacity;
         entry = map->vector+index;
 
         // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-        if(entry->state & IN_USE && key != entry->key) {
+        if(entry->state & IN_USE && !map->key_compare_func(key, entry->key)) {
             if( !quadratic_probe(map, key, index, &index, false)) {
                 // unable to find suitable location in current map. Increase size of array
-                grow_table(map);
+                resize_table(map, true);
                 goto retry;
             }
         }
@@ -72,43 +72,64 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     }
 
 
-    if (map->occupied<<2 > map->capacity) {
-        grow_table(map);
+    if (map->occupied*2 > map->capacity) {
+        resize_table(map, true);
     }
     return 0;
 }
 
 void* JHASHMAP_remove(JHASHMAP* map, void* key) {
+    if (!map || !key) {
+        return NULL;
+    }
 
     size_t index;
+    JHASHMAP_ENTRY* entry;
+    void* ret = NULL;
+
+    index = map->hash_func(key) % map->capacity;
+    entry = map->vector+index;
+
+    if (map->key_compare_func(entry->key, key)) {
+        entry->state = TOMB;
+        map->occupied--;
+        ret = entry->value;
+    }
+    else if (quadratic_probe(map, key, index, &index, true)) {
+        entry->state = TOMB;
+        map->occupied--;
+        ret = entry->value;
+    }
+    else {
+        return NULL;
+    }
+
+    if (map->occupied * 2 < map->capacity) {
+        resize_table(map, false);
+    }
+    return ret;
 }
 
 void* JHASHMAP_get(JHASHMAP* map, void* key) {
-    if (map == NULL) {
+    if (!map || !key) {
         return NULL;
     }
-    if (key == NULL) {
-        return NULL;
-    }
-
 
     /* Get the index from the supplied key*/
-    size_t index = map->hash_func(key, map->capacity) & (map->capacity)-1;
-    JHASHMAP* entry = map->vector+index;
+    size_t index = map->hash_func(key) % map->capacity;
+    JHASHMAP_ENTRY* entry = map->vector+index;
     
     /* If the keys match, return the item at this index*/
-    if (map->key_compare_func(key, map->vector[index].key)) {
+    if (entry->state & IN_USE && map->key_compare_func(key, map->vector[index].key)) {
         return map->vector[index].value;
     }
 
     // Otherwise, need to do quadratic probing
-    else {
-        if (quadratic_probe(map, key, index, &index, true)) {
-            return map->vector[index].value;
-        }
-        // key not in map
-        return NULL;
+    if (entry->state & TOMB && quadratic_probe(map, key, index, &index, true)) {
+        return map->vector[index].value;
     }
+    // key not in map
+    return NULL;
 
 }
 
@@ -123,7 +144,7 @@ bool JHASHMAP_has(JHASHMAP* map, void* key) {
 
 
     /* Get index from supplied key*/
-    size_t index = map->hash_func(key, map->capacity);
+    size_t index = map->hash_func(key) % map->capacity;
 
     /* If the keys match, return true */
     if (map->vector[index].state & 0x1 && map->key_compare_func(key, map->vector[index].key)) {
@@ -153,7 +174,7 @@ void JHASHMAP_free(JHASHMAP** map_ptr) {
  * @param[in] exact_search - denotes wether to search for an empty space or an exact value
  * \return true if valid index found, false otherwise
  */
-static inline bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact) {
+bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact) {
     // offset from starting position
     size_t j = 1;
     // number of checks. Will resize if reaches size of hashmap
@@ -196,19 +217,23 @@ static inline bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_inde
 }
 
 /* Increases size of hashmap if load factor exceeds a certain value*/
-static inline int grow_table(JHASHMAP* map) {
+int resize_table(JHASHMAP* map, bool grow) {
     size_t i, old_capacity, new_capacity;
     JHASHMAP_ENTRY* old_vector;
-   
+    
     old_capacity = map->capacity;
-    new_capacity = old_capacity * 2;
+    if (grow) {
+        new_capacity = old_capacity * 2;
+         // check for overflow
+         if (new_capacity / 2 != old_capacity) {
+            return -1;
+        }
+    }
+    else {
+        new_capacity = old_capacity / 2;
+    }
 
     old_vector = map->vector;
-
-    /* check for overflow*/
-    if (new_capacity / 2 != old_capacity) {
-        return 1;
-    }
 
     JHASHMAP_ENTRY* new_vector = (JHASHMAP_ENTRY*) calloc(new_capacity, sizeof(JHASHMAP_ENTRY));
     if (!new_vector) {
@@ -226,7 +251,7 @@ static inline int grow_table(JHASHMAP* map) {
             void* old_key = old_vector[i].key;
             void* old_value = old_vector[i].value;
 
-            size_t index = map->hash_func(old_key, map->capacity);
+            size_t index = map->hash_func(old_key) % map->capacity;
 
             // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
             if (map->vector[index].state & 1) {
@@ -239,7 +264,6 @@ static inline int grow_table(JHASHMAP* map) {
             map->occupied++;
         }
     }
-
 
     /* get rid of old vector*/
     free(old_vector);
