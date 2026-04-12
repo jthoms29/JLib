@@ -3,30 +3,25 @@
 
 /// @file JHASHMAP.h
 #include <stdlib.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 
-#define INITIAL_CAPACITY 20 ///< Initial number of elements that can be held in map
-
+#define INITIAL_CAPACITY 128 ///< Initial number of elements that can be held in map
+#define IN_USE 0x1
+#define TOMB   0x2
 
 /**
  * An entry in the hashmap data structure. Holds key-value pair
  */
 typedef struct JHASHMAP_ENTRY {
-    /// Indicates if this entry is currently in use
-    bool in_use;
-
-    /// Indicates if this entry was previously in use, needed for probing
-    bool previously_in_use;
-
     /// Key for the entry, what will be used to retrieve the data
     void* key;
-
     /// Value for the entry, data held
     void* value;
+    uint8_t state;
+    uint8_t pad[7];
 } JHASHMAP_ENTRY;
 
 
@@ -84,4 +79,5 @@ void* JHASHMAP_get(JHASHMAP* map, void* key);
 bool JHASHMAP_has(JHASHMAP* map, void* key);
    
 
+void JHASHMAP_free(JHASHMAP** map_ptr);
 #endif
