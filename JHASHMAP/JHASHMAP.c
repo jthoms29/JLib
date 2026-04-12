@@ -53,7 +53,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         entry = map->vector+index;
 
         // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-        if(entry->state & IN_USE && !map->key_compare_func(key, entry->key)) {
+        if(entry->state == IN_USE && !map->key_compare_func(key, entry->key)) {
             if( !quadratic_probe(map, key, index, &index, false)) {
                 // unable to find suitable location in current map. Increase size of array
                 resize_table(map, true);
@@ -66,7 +66,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     entry->key = key;
     entry->value = value;
     // only increment num of elements if this isn't replacing a pre-existing element
-    if (!(entry->state & IN_USE)) {
+    if (!(entry->state == IN_USE)) {
         map->occupied++;
         entry->state = IN_USE;
     }
@@ -90,12 +90,12 @@ void* JHASHMAP_remove(JHASHMAP* map, void* key) {
     index = map->hash_func(key) % map->capacity;
     entry = map->vector+index;
 
-    if (map->key_compare_func(entry->key, key)) {
+    if (entry->state == IN_USE && map->key_compare_func(entry->key, key)) {
         entry->state = TOMB;
         map->occupied--;
         ret = entry->value;
     }
-    else if (quadratic_probe(map, key, index, &index, true)) {
+    else if (entry->state & (IN_USE | TOMB) && quadratic_probe(map, key, index, &index, true)) {
         entry->state = TOMB;
         map->occupied--;
         ret = entry->value;
@@ -120,12 +120,12 @@ void* JHASHMAP_get(JHASHMAP* map, void* key) {
     JHASHMAP_ENTRY* entry = map->vector+index;
     
     /* If the keys match, return the item at this index*/
-    if (entry->state & IN_USE && map->key_compare_func(key, map->vector[index].key)) {
+    if (entry->state == IN_USE && map->key_compare_func(key, map->vector[index].key)) {
         return map->vector[index].value;
     }
 
     // Otherwise, need to do quadratic probing
-    if (entry->state & TOMB && quadratic_probe(map, key, index, &index, true)) {
+    if (entry->state & (TOMB | IN_USE) && quadratic_probe(map, key, index, &index, true)) {
         return map->vector[index].value;
     }
     // key not in map
@@ -254,13 +254,13 @@ int resize_table(JHASHMAP* map, bool grow) {
             size_t index = map->hash_func(old_key) % map->capacity;
 
             // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-            if (map->vector[index].state & 1) {
+            if (map->vector[index].state & IN_USE) {
                 quadratic_probe(map, old_key, index, &index, false);
             }
 
             map->vector[index].key = old_key;
             map->vector[index].value = old_value;
-            map->vector[index].state = 1;
+            map->vector[index].state = IN_USE;
             map->occupied++;
         }
     }

@@ -9,7 +9,8 @@
 #include <stdio.h>
 
 #define INITIAL_CAPACITY 128 ///< Initial number of elements that can be held in map
-#define IN_USE 0x3
+#define EMPTY  0x0
+#define IN_USE 0x1
 #define TOMB   0x2
 
 /**
@@ -62,6 +63,8 @@ JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func)
  */
 int JHASHMAP_add(JHASHMAP* map, void* key, void* value);
 
+
+void* JHASHMAP_remove(JHASHMAP* map, void* key);
 
 /** 
  * Get value from hashmap for corresponding key. Returns NULL if key
