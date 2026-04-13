@@ -1,10 +1,11 @@
 
 #include <JHASHMAP.h>
+#include <assert.h>
+#include <stdint.h>
 
-bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact);
-int resize_table(JHASHMAP* map, bool grow);
-
-
+int resize_table(JHASHMAP* map, int action);
+bool find_idx(JHASHMAP* map, void* key, size_t* found_index);
+bool find_empty(JHASHMAP* map, void* key, size_t* found_index);
 
 JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func) (void* key1, void* key2)) {
     // Allocate a new hashmap
@@ -32,8 +33,6 @@ JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func)
 }
 
 
-
-
 /*
  * Adds specified value to the hashmap using the specified key. If a value with an
  * identical key is already in the map, it is replaced.
@@ -46,20 +45,13 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     size_t index;
     JHASHMAP_ENTRY* entry;
 
-    // sorry big E.W.
+    /* get index from key */
     retry:
-        /* get index from key */
-        index = map->hash_func(key) % map->capacity;
-        entry = map->vector+index;
-
-        // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-        if(entry->state == IN_USE && !map->key_compare_func(key, entry->key)) {
-            if( !quadratic_probe(map, key, index, &index, false)) {
-                // unable to find suitable location in current map. Increase size of array
-                resize_table(map, true);
-                goto retry;
-            }
-        }
+    if (!find_empty(map, key, &index)) {
+        resize_table(map, true);
+        goto retry; //sorry big E.W.
+    }
+    entry = map->vector+index;
 
     /* Add value with corresponding key to map */
     entry = map->vector+index;
@@ -71,9 +63,9 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
         entry->state = IN_USE;
     }
 
-
+    // resize .5 load factor
     if (map->occupied*2 > map->capacity) {
-        resize_table(map, true);
+        resize_table(map, GROW);
     }
     return 0;
 }
@@ -82,31 +74,25 @@ void* JHASHMAP_remove(JHASHMAP* map, void* key) {
     if (!map || !key) {
         return NULL;
     }
-
     size_t index;
     JHASHMAP_ENTRY* entry;
-    void* ret = NULL;
 
-    index = map->hash_func(key) % map->capacity;
-    entry = map->vector+index;
+    // Key isn't in map
+    if (!find_idx(map, key, &index)) { return NULL; }
 
-    if (entry->state == IN_USE && map->key_compare_func(entry->key, key)) {
-        entry->state = TOMB;
-        map->occupied--;
-        ret = entry->value;
-    }
-    else if (entry->state & (IN_USE | TOMB) && quadratic_probe(map, key, index, &index, true)) {
-        entry->state = TOMB;
-        map->occupied--;
-        ret = entry->value;
-    }
-    else {
-        return NULL;
+    entry = map->vector + index;
+
+    entry->state = TOMB;
+    map->occupied--;
+
+    void* ret = entry->value;
+
+   
+    // resize at .25 load factor
+    if (map->capacity > INITIAL_CAPACITY && map->occupied < map->capacity / 4) {
+        resize_table(map, SHRINK);
     }
 
-    if (map->occupied * 2 < map->capacity) {
-        resize_table(map, false);
-    }
     return ret;
 }
 
@@ -116,44 +102,25 @@ void* JHASHMAP_get(JHASHMAP* map, void* key) {
     }
 
     /* Get the index from the supplied key*/
-    size_t index = map->hash_func(key) % map->capacity;
+    size_t index;
+    if (!find_idx(map, key ,&index)) {
+        // key not in map
+        return NULL;
+    }
     JHASHMAP_ENTRY* entry = map->vector+index;
-    
-    /* If the keys match, return the item at this index*/
-    if (entry->state == IN_USE && map->key_compare_func(key, map->vector[index].key)) {
-        return map->vector[index].value;
-    }
 
-    // Otherwise, need to do quadratic probing
-    if (entry->state & (TOMB | IN_USE) && quadratic_probe(map, key, index, &index, true)) {
-        return map->vector[index].value;
-    }
-    // key not in map
-    return NULL;
+    assert(map->key_compare_func(entry->key, key));
 
+    return entry->value;
 }
 
 
 bool JHASHMAP_has(JHASHMAP* map, void* key) {
-    if (map == NULL) {
+    if (!map || !key) {
         return false;
     }
-    if (key == NULL) {
-        return false;
-    }
-
-
-    /* Get index from supplied key*/
-    size_t index = map->hash_func(key) % map->capacity;
-
-    /* If the keys match, return true */
-    if (map->vector[index].state & 0x1 && map->key_compare_func(key, map->vector[index].key)) {
-        return true;
-    }
-
-    /* Otherwise, need to do quadratic probing*/
-    return quadratic_probe(map, key, index, &index, true);
-
+    size_t dummy;
+    return find_idx(map, key, &dummy);
 }
 
 void JHASHMAP_free(JHASHMAP** map_ptr) {
@@ -174,55 +141,94 @@ void JHASHMAP_free(JHASHMAP** map_ptr) {
  * @param[in] exact_search - denotes wether to search for an empty space or an exact value
  * \return true if valid index found, false otherwise
  */
-bool quadratic_probe(JHASHMAP* map, void* key, size_t initial_index, size_t* found_index, bool search_exact) {
-    // offset from starting position
-    size_t j = 1;
-    // number of checks. Will resize if reaches size of hashmap
-    size_t count = 0;
-   
+bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
     JHASHMAP_ENTRY* entry;
-    // check alternating offsets of perfect squares from the found index until an empty space is found
-    while (count < map->capacity) {
-        size_t k = (j + 1)/2; // 1,1,2,2,3,3,...
-        size_t offset = k*k % map->capacity;
+   
+    size_t mask = (map->capacity-1); // assume power of 2 size
+    size_t initial_index = map->hash_func(key) & mask;
 
+    for(size_t i = 0; i < map->capacity; i++) {
+        // size_t k = (i + 1)/2; // 0,1,1,2,2,3,3,...
+        // size_t offset = k*k & mask;
 
-        size_t new_idx = (j % 2 == 0) 
-            ? (initial_index + offset) % map->capacity
-            : (initial_index + map->capacity - offset) % map->capacity; // properly handle negative modulo
+        // size_t new_idx = (i & 1) 
+        //     ? (initial_index + map->capacity - offset) & mask // properly handle negative modulo
+        //     : (initial_index + offset) & mask;
 
-
+        size_t new_idx = (initial_index + i) & mask;
         entry = map->vector+new_idx;
-        //found an empty index. return if ok
-        if (!(entry->state & IN_USE)) {
-            // just wanted an empty space, return
-            if (!search_exact) {
-                *found_index = new_idx;
-                return true;
-            }
-            // if landed on totally unused index, the entry we're looking for doesn't exist 
-            if (!(entry->state & TOMB)) {
-                return false;
-            }
-        }
-        // check if occupied space has same key. If so, the index can be returned
-        if (map->key_compare_func(key, entry->key)) {
+        uint8_t state = entry->state;
+
+        if (state == EMPTY) { return false; }
+
+        int match = (state & IN_USE) && map->key_compare_func(key, entry->key);
+
+        if (match) {
             *found_index = new_idx;
             return true;
         }
-        j+=1;
-        count+=1;
     }
     return false;
 }
 
+bool find_empty(JHASHMAP* map, void* key, size_t* found_index) {
+    // offset from starting position
+    JHASHMAP_ENTRY* entry;
+   
+    size_t mask = (map->capacity-1); // assume power of 2 size
+    size_t initial_index = map->hash_func(key) & mask;
+
+    size_t first_tomb = SIZE_MAX;
+
+    for(size_t i = 0; i < map->capacity; i++) {
+        // size_t k = (i + 1)/2; // 0,1,1,2,2,3,3,...
+        // size_t offset = k*k & mask;
+
+        // // switch between postive and negative square offsets
+        // size_t new_idx = (i & 1) 
+        //     ? (initial_index + map->capacity - offset) & mask // properly handle negative modulo
+        //     : (initial_index + offset) & mask;
+
+        size_t new_idx = (initial_index + i) & mask;
+
+        entry = map->vector+new_idx;
+        uint8_t state = entry->state;
+
+
+        if (state == IN_USE && map->key_compare_func(key, entry->key)) {
+            *found_index = new_idx;
+            return true;
+        }
+
+        if (state == TOMB && first_tomb == SIZE_MAX) {
+            first_tomb = new_idx;
+            continue;
+        }
+
+        // found empty index. If tombstone remembered, use that instead
+        if (state == EMPTY) {
+            *found_index = (first_tomb == SIZE_MAX)
+            ? new_idx
+            : first_tomb;
+            return true; 
+        }
+
+    }
+
+    // if tombstone found, use that. If not, no space
+    if (first_tomb == SIZE_MAX) { return false; }
+    *found_index = first_tomb;
+    return true;
+}
+
+
 /* Increases size of hashmap if load factor exceeds a certain value*/
-int resize_table(JHASHMAP* map, bool grow) {
+int resize_table(JHASHMAP* map, int action) {
     size_t i, old_capacity, new_capacity;
     JHASHMAP_ENTRY* old_vector;
     
     old_capacity = map->capacity;
-    if (grow) {
+    if (action == GROW) {
         new_capacity = old_capacity * 2;
          // check for overflow
          if (new_capacity / 2 != old_capacity) {
@@ -247,21 +253,11 @@ int resize_table(JHASHMAP* map, bool grow) {
 
     /* Rehash all vector elements from the original table into the new one*/
     for(i = 0; i < old_capacity; i++) {
-        if (old_vector[i].state == 1) {
+        if (old_vector[i].state == IN_USE) {
             void* old_key = old_vector[i].key;
             void* old_value = old_vector[i].value;
 
-            size_t index = map->hash_func(old_key) % map->capacity;
-
-            // this space is already occupied and doesn't have the same key. Use quadratic probing to find an empty one
-            if (map->vector[index].state & IN_USE) {
-                quadratic_probe(map, old_key, index, &index, false);
-            }
-
-            map->vector[index].key = old_key;
-            map->vector[index].value = old_value;
-            map->vector[index].state = IN_USE;
-            map->occupied++;
+            JHASHMAP_add(map, old_key, old_value);
         }
     }
 

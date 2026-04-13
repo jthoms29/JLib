@@ -8,10 +8,15 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define INITIAL_CAPACITY 128 ///< Initial number of elements that can be held in map
+#define INITIAL_CAPACITY 1024 ///< Initial number of elements that can be held in map
 #define EMPTY  0x0
 #define IN_USE 0x1
 #define TOMB   0x2
+
+
+
+#define SHRINK 0
+#define GROW   1
 
 /**
  * An entry in the hashmap data structure. Holds key-value pair
@@ -44,6 +49,8 @@ typedef struct JHASHMAP {
 
     /// the current capacity of the vector
     size_t capacity;
+
+//    uint8_t* metadata;;
 } JHASHMAP;
 
 /**
