@@ -133,13 +133,7 @@ void JHASHMAP_free(JHASHMAP** map_ptr) {
 /******* PRIV HELPER FUNCTIONS *********/
 
 /*
- * Uses quadratic probing to search through the hashmap, either for an empty space or an exact key
- * @param[in] map - the hashmap
- * @param[in] key - key to search for
- * @param[in] initial_index - index to start probing from
- * @param[out] found_indx - reference to size_t variable to write found index to
- * @param[in] exact_search - denotes wether to search for an empty space or an exact value
- * \return true if valid index found, false otherwise
+ Search for the exact key. Uses linear probing
  */
 bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
     JHASHMAP_ENTRY* entry;
@@ -148,12 +142,6 @@ bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
     size_t initial_index = map->hash_func(key) & mask;
 
     for(size_t i = 0; i < map->capacity; i++) {
-        // size_t k = (i + 1)/2; // 0,1,1,2,2,3,3,...
-        // size_t offset = k*k & mask;
-
-        // size_t new_idx = (i & 1) 
-        //     ? (initial_index + map->capacity - offset) & mask // properly handle negative modulo
-        //     : (initial_index + offset) & mask;
 
         size_t new_idx = (initial_index + i) & mask;
         entry = map->vector+new_idx;
@@ -170,7 +158,9 @@ bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
     }
     return false;
 }
-
+/*
+ Search for either an empty space or the exact key. Uses linear probing.
+ */
 bool find_empty(JHASHMAP* map, void* key, size_t* found_index) {
     // offset from starting position
     JHASHMAP_ENTRY* entry;
@@ -181,13 +171,6 @@ bool find_empty(JHASHMAP* map, void* key, size_t* found_index) {
     size_t first_tomb = SIZE_MAX;
 
     for(size_t i = 0; i < map->capacity; i++) {
-        // size_t k = (i + 1)/2; // 0,1,1,2,2,3,3,...
-        // size_t offset = k*k & mask;
-
-        // // switch between postive and negative square offsets
-        // size_t new_idx = (i & 1) 
-        //     ? (initial_index + map->capacity - offset) & mask // properly handle negative modulo
-        //     : (initial_index + offset) & mask;
 
         size_t new_idx = (initial_index + i) & mask;
 
@@ -222,7 +205,7 @@ bool find_empty(JHASHMAP* map, void* key, size_t* found_index) {
 }
 
 
-/* Increases size of hashmap if load factor exceeds a certain value*/
+/* Resizes or shrinks internal vector by a factor of two */
 int resize_table(JHASHMAP* map, int action) {
     size_t i, old_capacity, new_capacity;
     JHASHMAP_ENTRY* old_vector;

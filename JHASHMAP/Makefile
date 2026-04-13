@@ -11,7 +11,7 @@ BIN_DIR=build/bin
 
 BINARIES = test
 
-SRCS = $(wildcard *.c)
+SRCS = $(wildcard *.c) ../JHELPER.c
 OBJS = $(SRCS:%.c=$(OBJ_DIR)/%.o)
 
 all: $(BINARIES)
@@ -30,8 +30,8 @@ $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) -I. $< -o $@
 
 
-$(BIN_DIR)/$(BINARIES): $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)/test: $(OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $^ -lm -o $@
 
-$(BINARIES): $(BIN_DIR)/$(BINARIES)
+test: $(BIN_DIR)/test
 	ln -sf $< $@
