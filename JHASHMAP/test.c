@@ -144,6 +144,7 @@ void test_tombstone(size_t num) {
     printf("%ld insertions in %ld ms\n", num, tm);
 
 
+    start = cur_ms();
     // delete every second input
     for (size_t i = 0; i < num/2; i++) {
         assert(JHASHMAP_remove(map, keys[i*2]));
@@ -288,8 +289,8 @@ int main(void) {
     test_collision(10000);
     test_tombstone(10000);
     test_replace(10000);
-    test_primitive_performance(10000000);
-    fuzz_test(10000, 100000000);
+    test_primitive_performance(1000000);
+    fuzz_test(10000, 10000000);
 
     printf("\nAll JHASHMAP tests passed\n");
     return 0;

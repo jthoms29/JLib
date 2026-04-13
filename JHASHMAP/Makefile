@@ -1,6 +1,6 @@
 # John Thoms
 CC = gcc
-CFLAGS = -g -O2
+CFLAGS = -g -O3
 CPPFLAGS = -std=c99 -Wall -pedantic -Wextra
 
 

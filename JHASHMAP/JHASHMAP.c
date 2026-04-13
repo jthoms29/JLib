@@ -5,7 +5,7 @@
 
 int resize_table(JHASHMAP* map, int action);
 bool find_idx(JHASHMAP* map, void* key, size_t* found_index);
-bool find_empty(JHASHMAP* map, void* key, size_t* found_index);
+bool find_empty(JHASHMAP* map, void* key, size_t* found_index, size_t* hash_ret);
 
 JHASHMAP* JHASHMAP_new(size_t (*hash_func) (void* key), bool (*key_compare_func) (void* key1, void* key2)) {
     // Allocate a new hashmap
@@ -46,8 +46,9 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     JHASHMAP_ENTRY* entry;
 
     /* get index from key */
+    size_t hash = 0;
     retry:
-    if (!find_empty(map, key, &index)) {
+    if (!find_empty(map, key, &index, &hash)) {
         resize_table(map, true);
         goto retry; //sorry big E.W.
     }
@@ -57,6 +58,7 @@ int JHASHMAP_add(JHASHMAP* map, void* key, void* value) {
     entry = map->vector+index;
     entry->key = key;
     entry->value = value;
+    entry->hash = hash;
     // only increment num of elements if this isn't replacing a pre-existing element
     if (!(entry->state == IN_USE)) {
         map->occupied++;
@@ -83,6 +85,7 @@ void* JHASHMAP_remove(JHASHMAP* map, void* key) {
     entry = map->vector + index;
 
     entry->state = TOMB;
+    map->tombstones++;
     map->occupied--;
 
     void* ret = entry->value;
@@ -91,6 +94,11 @@ void* JHASHMAP_remove(JHASHMAP* map, void* key) {
     // resize at .25 load factor
     if (map->capacity > INITIAL_CAPACITY && map->occupied < map->capacity / 4) {
         resize_table(map, SHRINK);
+    }
+
+    // reshash if there is a significant number of deleted entries
+    else if (map->tombstones > map->occupied) {
+        resize_table(map, NONE);
     }
 
     return ret;
@@ -137,19 +145,25 @@ void JHASHMAP_free(JHASHMAP** map_ptr) {
  */
 bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
     JHASHMAP_ENTRY* entry;
-   
+  
+    size_t hash = map->hash_func(key);
     size_t mask = (map->capacity-1); // assume power of 2 size
-    size_t initial_index = map->hash_func(key) & mask;
+    size_t initial_index = hash & mask;
 
-    for(size_t i = 0; i < map->capacity; i++) {
+    size_t cap = map->capacity;
+    for(size_t i = 0; i < cap; i++) {
 
         size_t new_idx = (initial_index + i) & mask;
         entry = map->vector+new_idx;
         uint8_t state = entry->state;
 
         if (state == EMPTY) { return false; }
-
-        int match = (state & IN_USE) && map->key_compare_func(key, entry->key);
+        
+        bool match = false;
+        if (state == IN_USE && entry->hash == hash) {
+            // only compare keys if hashes match
+            match = map->key_compare_func(key, entry->key);
+        }
 
         if (match) {
             *found_index = new_idx;
@@ -161,26 +175,29 @@ bool find_idx(JHASHMAP* map, void* key, size_t* found_index) {
 /*
  Search for either an empty space or the exact key. Uses linear probing.
  */
-bool find_empty(JHASHMAP* map, void* key, size_t* found_index) {
-    // offset from starting position
-    JHASHMAP_ENTRY* entry;
-   
+bool find_empty(JHASHMAP* map, void* key, size_t* found_index, size_t* hash_ret) {
+  
+    size_t hash = map->hash_func(key);
+    *hash_ret = hash;
     size_t mask = (map->capacity-1); // assume power of 2 size
-    size_t initial_index = map->hash_func(key) & mask;
+    size_t initial_index = hash & mask;
 
     size_t first_tomb = SIZE_MAX;
 
-    for(size_t i = 0; i < map->capacity; i++) {
+    size_t cap = map->capacity;
+    for(size_t i = 0; i < cap; i++) {
 
         size_t new_idx = (initial_index + i) & mask;
 
-        entry = map->vector+new_idx;
+        JHASHMAP_ENTRY* entry = map->vector+new_idx;
         uint8_t state = entry->state;
 
-
-        if (state == IN_USE && map->key_compare_func(key, entry->key)) {
-            *found_index = new_idx;
-            return true;
+        if (state == IN_USE && entry->hash == hash) {
+            // only compare keys if hashes are same
+            if (map->key_compare_func(key, entry->key)) {
+                *found_index = new_idx;
+                return true;
+           }
         }
 
         if (state == TOMB && first_tomb == SIZE_MAX) {
@@ -218,8 +235,11 @@ int resize_table(JHASHMAP* map, int action) {
             return -1;
         }
     }
-    else {
+    else if (action == SHRINK) {
         new_capacity = old_capacity / 2;
+    }
+    else {
+        new_capacity = old_capacity;
     }
 
     old_vector = map->vector;
@@ -232,6 +252,7 @@ int resize_table(JHASHMAP* map, int action) {
 
     map->capacity = new_capacity;
     map->occupied = 0;
+    map->tombstones = 0;
     map->vector = new_vector;
 
     /* Rehash all vector elements from the original table into the new one*/

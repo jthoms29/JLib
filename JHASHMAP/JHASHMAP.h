@@ -14,13 +14,16 @@
 #define TOMB   0x2 // Indicates that an entry was previously in use -> used for probing
 
 // used in the map resize function
-#define SHRINK 0
-#define GROW   1
+#define SHRINK 1
+#define NONE   0
+#define GROW   2
 
 /*
  * An entry in the hashmap data structure. Holds key-value pairs
  */
 typedef struct JHASHMAP_ENTRY {
+    // hash value for this entry. Allows for quicker comparisons
+    size_t hash;
     // Key for the entry, what will be used to retrieve the data
     void* key;
     // Value for the entry, data held
@@ -42,6 +45,8 @@ typedef struct JHASHMAP {
     JHASHMAP_ENTRY* vector;
     // the current number of occupied indices of the vector
     size_t occupied;
+    // number of tombstones in vector
+    size_t tombstones;
     // the current capacity of the vector
     size_t capacity;
 } JHASHMAP;
