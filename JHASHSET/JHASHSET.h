@@ -3,27 +3,28 @@
 
 /// @file JHASHSET.h
 #include <stdlib.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 
-#define INITIAL_CAPACITY 20 ///< Initial number of elements that can be held in set
+#define INITIAL_CAPACITY 1024 ///< Initial number of elements that can be held in set
+#define EMPTY  0x0 // Indicates that an entry is empty
+#define IN_USE 0x1 // Indicates that an entry is currently in use
+#define TOMB   0x2 // Indicates that an entry was previously in use -> used for probing
 
+// used in the set resize function
+#define SHRINK 0
+#define GROW   1
 
 /**
  * An entry in the hashset data structure. Holds value
  */
 typedef struct JHASHSET_ENTRY {
-    /// Indicates if this entry is currently in use
-    bool in_use;
-
-    /// Indicates if this entry was previously in use, needed for probing
-    bool previously_in_use;
-
     /// Value for the entry, data held
-    void* value;
+    void* val;
+    // current state of the entry, macros defined above
+    uint8_t state;
 } JHASHSET_ENTRY;
 
 
@@ -32,10 +33,10 @@ typedef struct JHASHSET_ENTRY {
  */
 typedef struct JHASHSET {
     /// A pointer to a user defined hash function for whatever data-type the value is 
-    size_t (*hash_func)(void* value, size_t set_capacity);
+    size_t (*hash_func)(void* value);
 
     /// Function needed to compare values of some data type
-    bool (*value_compare_func)(void* value1, void* value2);
+    bool (*val_compare_func)(void* val1, void* val2);
 
     /// The array that will hold the entries
     JHASHSET_ENTRY* vector;
@@ -53,12 +54,12 @@ typedef struct JHASHSET {
  * @param[in] value_compare_func
  * \return A new heap allocated hashset
  */
-JHASHSET* JHASHSET_new(size_t (*hash_func) (void* value, size_t set_capcity), bool (*value_compare_func) (void* value1, void* value2));
+JHASHSET* JHASHSET_new(size_t (*hash_func) (void* value), bool (*value_compare_func) (void* value1, void* value2));
 
 /**
  * Frees the hashset data structure. Values should be freed by user.
  */
-int JHASHSET_free(JHASHSET* set);
+void JHASHSET_free(JHASHSET** set);
 
 /**
  * Add a value to the hashset.
@@ -66,7 +67,7 @@ int JHASHSET_free(JHASHSET* set);
  * @param[in] value
  * \return 0 on success, anything else on failure
  */
-int JHASHSET_add(JHASHSET* set, void* value);
+int JHASHSET_add(JHASHSET* set, void* val);
 
 
 
