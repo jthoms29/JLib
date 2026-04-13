@@ -274,6 +274,10 @@ void fuzz_test(size_t num, size_t iter) {
 
     printf("%ld insertions, %ld deletions, %ld gets in %ld ms\n", insertions, deletions, gets, tm);
     printf("%ld occupied, %ld capacity\n", map->occupied, map->capacity);
+    free_unique_strings(keys, num);
+    free_unique_strings(vals, num);
+
+    JHASHMAP_free(&map);
 }
 
 
