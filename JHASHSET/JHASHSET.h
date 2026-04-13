@@ -61,6 +61,7 @@ JHASHSET* JHASHSET_new(size_t (*hash_func) (void* value), bool (*value_compare_f
  */
 void JHASHSET_free(JHASHSET** set);
 
+void* JHASHSET_remove(JHASHSET* set, void* val);
 /**
  * Add a value to the hashset.
  * @param[in, out] set

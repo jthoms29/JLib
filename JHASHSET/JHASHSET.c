@@ -186,7 +186,7 @@ bool find_empty(JHASHSET* set, void* val, size_t* found_index) {
 
 
 /* Resizes or shrinks internal vector by a factor of two */
-int resize_table(JHASHSET* set, int action) {
+int resize_set(JHASHSET* set, int action) {
     size_t i, old_capacity, new_capacity;
     JHASHSET_ENTRY* old_vector;
     

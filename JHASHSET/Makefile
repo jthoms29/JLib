@@ -1,6 +1,6 @@
 # John Thoms
 CC = gcc
-CFLAGS = -g
+CFLAGS = -g -O2
 CPPFLAGS = -std=c99 -Wall -pedantic -Wextra
 
 
@@ -9,12 +9,12 @@ LIB_DIR=build/lib
 BIN_DIR=build/bin
 
 
-BINARY = test
+BINARIES = test
 
-SRCS = $(wildcard *.c)
+SRCS = $(wildcard *.c) ../JHELPER.c
 OBJS = $(SRCS:%.c=$(OBJ_DIR)/%.o)
 
-all: $(BINARY)
+all: $(BINARIES)
 
 clean:
 	rm -rf build $(BINARIES)
@@ -30,8 +30,8 @@ $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) -I. $< -o $@
 
 
-$(BIN_DIR)/$(BINARY): $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)/test: $(OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $^ -lm -o $@
 
-$(BINARY): $(BIN_DIR)/$(BINARY)
+test: $(BIN_DIR)/test
 	ln -sf $< $@
