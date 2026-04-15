@@ -11,39 +11,31 @@
 
 
 /// The initial number of space allocated for the vector
-#define INITIAL_CAP 10
+#define INITIAL_PAD 8
+#define INITIAL_CAP 16
+
+enum resize_action {
+    SHRINK_LEFT,
+    GROW_LEFT,
+    SHRINK_RIGHT,
+    GROW_RIGHT,
+};
+
 
 /**
  * The vector data structure
  */
 typedef struct JVEC {
-    /// Address of array contained in the vector
+    // Address of array contained in the vector
     void** head;
-
-    /// The current length of the vector 
+    // first index taking the pad into account
+    void** start;
+    // The current length of the vector 
     size_t length;
-
-    /// The current capacity of the vector
-    size_t capacity;
-
-
-    /// Function that is passed to data structure upon initialization; frees the datatype held
-    /// by the vector
+    // The current capacity of the vector
+    size_t cap;
+    size_t pad;
     void (*free_func)(void* item);
-
-
-    /// Mutex variable used to access the vector in each function
-    pthread_mutex_t vec_tex;
-
-    /// Condition variable. If a thread calls a function that modifies the
-    /// vector but there are currently other threads reading from the vector,
-    /// it will wait on this variable.
-    pthread_cond_t vec_cond;
-
-    /// The number of threads currently reading from the vector. Since certain
-    /// functions don't modify the vector, multiple threads are able to call these
-    /// functions at a time.
-    int readers;
 
 } JVEC;
 
@@ -55,6 +47,9 @@ typedef struct JVEC {
 JVEC* JVEC_new( void (*item_free_func)(void* item) );
 
 
+static inline void* JVEC_get(JVEC* vec, size_t idx) {
+    return (idx < vec->length) ? vec->start[idx] : NULL;
+}
 /**
  * Append a variable to the end of the vector.
  * \param[out] vector A pointer to a previously allocated JVEC
@@ -72,14 +67,9 @@ int JVEC_append(JVEC *vector, void* data_ptr);
  */
 int JVEC_prepend(JVEC *vector, void* data_ptr);
 
-/**
- * Add a pointer to a variable to a valid index of the vector. If
- * an element already exists there, That element and all proceeding are moved forward.
- * \param[out] vector A pointer to a previously allocated JVEC
- * \param[in] data_ptr Pointer to a piece of data you wish to insert into to the vector 
- * \return 0 on success, 1 on
- */
-int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index);
+
+int JVEC_in_after(JVEC* vec, void* data, size_t idx);
+
 
 /**
  * Get the element residing at the given index in the vector.
@@ -115,7 +105,7 @@ long JVEC_len(JVEC* vector);
  * Free the specified JVEC. Uses free function passed in on intitialization.
  * \param[in] vector A pointer to the JVEC you wish to free
  */
-void JVEC_free(JVEC* vector);
+void JVEC_free(JVEC** vector);
 
 
 #endif

@@ -1,14 +1,19 @@
 # John Thoms
 CC = gcc
-CFLAGS = -g
-CPPFLAGS = -Wall -pedantic -Wextra
+CFLAGS = -g -O2 -fsanitize=address -fsanitize=bounds
+CPPFLAGS = -std=c99 -Wall -pedantic -Wextra -fsanitize=address -fsanitize=bounds
 
 
-OBJ_DIR=build/$(PLATFORM)/obj
-LIB_DIR=build/$(PLATFORM)/lib
-BIN_DIR=build/$(PLATFORM)/bin
+OBJ_DIR=build/obj
+LIB_DIR=build/lib
+BIN_DIR=build/bin
+
 
 BINARIES = test
+
+SRCS = $(wildcard *.c) ../JHELPER.c
+OBJS = $(SRCS:%.c=$(OBJ_DIR)/%.o)
+
 all: $(BINARIES)
 
 clean:
@@ -16,31 +21,17 @@ clean:
 
 
 # directories
-$(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
-
-$(LIB_DIR):
-	mkdir -p $(LIB_DIR)
-
-$(BIN_DIR):
-	mkdir -p $(BIN_DIR)
+$(OBJ_DIR) $(LIB_DIR) $(BIN_DIR):
+	mkdir -p $@
 
 
-$(OBJ_DIR)/JVEC.o: JVEC.c | $(OBJ_DIR)
-	$(CC) -c $(CFLAGS) $(CPPFLAGS) JVEC.c -I. -o $(OBJ_DIR)/JVEC.o
+# build source files
+$(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) -I. $< -o $@
 
 
-$(BIN_DIR)/JVEC: $(OBJ_DIR)/JVEC.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JVEC.o -o $(BIN_DIR)/JVEC
-
-
-$(OBJ_DIR)/test.o: test.c | $(OBJ_DIR)
-	$(CC) -c $(CFLAGS) $(CPPFLAGS) test.c -I. -o $(OBJ_DIR)/test.o
-
-
-$(BIN_DIR)/test: $(OBJ_DIR)/JVEC.o  $(OBJ_DIR)/test.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJ_DIR)/JVEC.o $(OBJ_DIR)/test.o -o $(BIN_DIR)/test
-
+$(BIN_DIR)/test: $(OBJS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $^ -lm -o $@
 
 test: $(BIN_DIR)/test
-	ln -sf $(BIN_DIR)/test test
+	ln -sf $< $@

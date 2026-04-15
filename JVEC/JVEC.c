@@ -1,294 +1,164 @@
 #include <JVEC.h>
-#include <pthread.h>
-
-static int JVEC_grow(JVEC* vector) {
-    size_t new_capacity = vector->capacity * 2;
+#include <stddef.h>
+#include <string.h>
 
 
-    void** new_head = (void**) realloc(vector->head, new_capacity* sizeof(void*));
+static inline int JVEC_resize(JVEC* vec, enum resize_action act) {
+  
+
+    size_t cur_cap = vec->cap;
+    size_t cur_pad = vec->pad;
+
+    size_t new_cap = cur_cap;
+    size_t new_pad = cur_pad;
+
+    ptrdiff_t start_offset = vec->start - vec->head;
+
+    switch (act) {
+        case GROW_RIGHT: new_cap *= 2; break;
+        case SHRINK_RIGHT: new_cap /= 2; break;
+        case GROW_LEFT: new_pad *= 2; break;
+        case SHRINK_LEFT: new_pad /= 2; break;
+    }
+
+    void** new_head = (void**) realloc(vec->head, (new_pad + new_cap) * sizeof(void*));
     if (!new_head) {
-        perror("Failed to resize vector.");
+        perror("Failed to resize vec.");
         return 1;
     }
 
-    vector->head = new_head;
-    vector->capacity = new_capacity;
-    return 0;
-}
+    void** old_start = new_head + start_offset;
+    void** new_start = new_head + new_pad;
 
-static int JVEC_shrink(JVEC* vector) {
-    size_t new_capacity = vector->capacity / 2;
-    printf("%ld new cap %ld\n", vector->capacity, new_capacity);
-
-    void ** new_head = (void**) realloc(vector->head, new_capacity * sizeof(void*));
-    if (!new_head) {
-        perror("Failed to resize vector");
-        return 1;
+    if (new_start != old_start) {
+        memmove(new_start, old_start, vec->length*sizeof(void*));
     }
+    vec->head = new_head;
+    vec->start = new_start;
+    vec->cap = new_cap;
+    vec->pad = new_pad;
 
-    vector->head = new_head;
-    vector->capacity = new_capacity;
     return 0;
 }
+
 /*
- * initialize a new JVEC. Returns a reference to the heap allocated vector.
+ * initialize a new JVEC. Returns a reference to the heap allocated vec.
  */
-JVEC* JVEC_new( void (*item_free_func)(void* item) ) {
-    JVEC* vector = (JVEC*) calloc(sizeof(JVEC), 1);
-
-    if (!vector) {
-        perror("Failed to allocate new vector");
+JVEC* JVEC_new(void (*item_free_func)(void* item)) {
+    JVEC* vec = (JVEC*) calloc(1, sizeof(*vec));
+    if (!vec) {
+        perror("Failed to allocate new vec");
         return NULL;
     }
 
-    // start off with INITIAL_CAP elements
-    void** array = (void**)calloc(sizeof(void*),INITIAL_CAP);
-    // allocation fails
+    // start off with INITIAL_CAP elements, leave INITIAL_PAD space at front
+    void** array = calloc(INITIAL_PAD + INITIAL_CAP, sizeof(*array));
     if (!array) {
         perror("Failed to allocate array memory");
         return NULL;
     }
 
-    // set new array to head
-    vector->head = array;
-
-    // no items currently in vector
-    vector->length = 0;
-
-    // starting capacity is 10
-    vector->capacity = INITIAL_CAP;
-
-    vector->free_func = item_free_func;
-
-    //initialize synchronization variables
-    pthread_mutex_init(&vector->vec_tex, NULL);
-    pthread_cond_init(&vector->vec_cond, NULL);
-    vector->readers = 0;
-
-    return vector;
+    vec->head = array;
+    vec->length = 0;
+    vec->cap = INITIAL_CAP;
+    vec->pad = INITIAL_PAD;
+    // start address. Leave space at front to account for prepends
+    vec->start = array + INITIAL_PAD;
+    vec->free_func = item_free_func;
+    return vec;
 }
 
 
 /*
- * append a pointer to a heap allocated variable to the end of the vector
+ * append a pointer to a heap allocated variable to the end of the vec
  */
-int JVEC_append(JVEC* vector, void* data_ptr) {
-
-    if (!vector) {
-        printf("JVEC_append: vector is NULL.\n");
-        return 1;
+static inline int JVEC_append_INLINE(JVEC* vec, void* data) {
+    if (!vec) {
+        return -1;
     }
-
-    //modifies vector, so must wait for all readers to leave
-    pthread_mutex_lock(&vector->vec_tex);
-    if (vector->readers) {
-        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    // grow vec if needed
+    if (vec->length == vec->cap) {
+        JVEC_resize(vec, GROW_RIGHT);
     }
 
     // set next open index to new element
-    *(vector->head + vector->length) = data_ptr;
+    *(vec->start + vec->length) = data;
+    vec->length++;
 
-    vector->length++;
-
-    // grow vector if needed
-    if (vector->length == vector->capacity) {
-        JVEC_grow(vector);
-    }
-
-    pthread_mutex_unlock(&vector->vec_tex);
     return 0;
 }
-
+int JVEC_append(JVEC* vec, void* data) {
+    return JVEC_append_INLINE(vec, data);
+}
 
 /*
- * prepend a pointer to a heap allocated variable to the start of the vector
+ * prepend a pointer to a heap allocated variable to the start of the vec
  */
-int JVEC_prepend(JVEC* vector, void* data_ptr) {
-
-    if (!vector) {
-        printf("JVEC_prepend: vector is NULL.\n");
-        return 1;
-    }
-
-    //modifies vector, so must wait for all readers to leave
-    pthread_mutex_lock(&vector->vec_tex);
-    if (vector->readers) {
-        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
-    }
-
-    // the index vector->length is one after the final element
-    size_t i;
-    for (i = vector->length; i > 0; i--) {
-        // move previous element forward to current index
-        *(vector->head + i) = *(vector->head + i-1);
-    }
-
-    *vector->head = data_ptr;
-
-    vector->length++;
-
-    if (vector->length == vector->capacity) {
-        JVEC_grow(vector);
-    }
-
-    pthread_mutex_unlock(&vector->vec_tex);
-    return 0;
-}
-
-
-/*
- * add a pointer to a heap allocated variable to a valid index of the vector. If
- * an element already exists there, it is moved forward. If not (the first open posisition),
- * it is simply appended like normal.
- */
-int JVEC_insert_at(JVEC* vector, void* data_ptr, size_t index) {
-
-    if (!vector) {
-        printf("JVEC_insert_at: vector is NULL.\n");
-        return 1;
-    }
-
-    //modifies vector, so must wait for all readers to leave
-    pthread_mutex_lock(&vector->vec_tex);
-    if (vector->readers) {
-        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
-    }
-
-    // if the index isn't somewhere in the middle or the first open position
-    if (index > vector->length) {
-        perror("JVEC_insert_at: Index out of bounds\n");
-        pthread_mutex_unlock(&vector->vec_tex);
-        return 1;
-    }
-
-    // move existing elements forward if needed
-    size_t i;
-    // the index vector->length is one after the final element
-    for (i = vector->length; i > index; i--) {
-        // move previous element forward to current index
-        *(vector->head + i) = *(vector->head + i-1);
-    }
-
-    // insert new element at specified index
-    *(vector->head+index) = data_ptr;
-
-    vector->length++;
-
-    //grow vector if needed
-    if (vector->length == vector->capacity) {
-        JVEC_grow(vector);
-    }
-    
-    pthread_mutex_unlock(&vector->vec_tex);
-
-    return 0;
-}
-
-
-void* JVEC_pop(JVEC* vector) {
-
-    if (!vector) {
-        printf("JVEC_pop: vector is NULL.\n");
-        return NULL;
-    }
-
-    //modifies vector, so must wait for all readers to leave
-    pthread_mutex_lock(&vector->vec_tex);
-    if (vector->readers) {
-        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
-    }
-
-
-    if (vector->length == 0) {
-        pthread_mutex_unlock(&vector->vec_tex);
-        return NULL;
-    }
-
-    // get the last item
-    void* item = *(vector->head + vector->length - 1);
-    vector->length--;
-
-    //if the vector has lost enough elements, shrink memory allocated to it.
-    if (vector->length == vector->capacity/2) {
-        JVEC_shrink(vector);
-    }
-
-    pthread_mutex_unlock(&vector->vec_tex);
-    return item;
-}
-
-void* JVEC_get_at(JVEC* vector, size_t index) {
-
-    // function only reads from vector, multiple threads can do this at a time.
-    pthread_mutex_lock(&vector->vec_tex);
-    vector->readers++;
-    pthread_mutex_unlock(&vector->vec_tex);
-
-    void* ret;
-
-    if (index >= vector->length) {
-        perror("Index out of bounds\n");
-        ret = NULL;
-    }
-    else {
-        ret =  *(vector->head + index);
-    }
-
-    pthread_mutex_lock(&vector->vec_tex);
-    vector->readers--;
-    //if this was the last reader, wake up a possibly sleeping writer
-    if (vector->readers == 0) {
-        pthread_cond_signal(&vector->vec_cond);
-    }
-    pthread_mutex_unlock(&vector->vec_tex);
-
-    return ret;
-}
-
-long JVEC_len(JVEC* vector) {
-    if (vector == NULL) {
-        printf("JVEC_len: vector is NULL\n");
+static inline int JVEC_prepend_INLINE(JVEC* vec, void* data) {
+    if (!vec) {
         return -1;
     }
-
-    pthread_mutex_lock(&vector->vec_tex);
-    vector->readers++;
-    pthread_mutex_unlock(&vector->vec_tex);
-
-    long len = vector->length;
-
-    pthread_mutex_lock(&vector->vec_tex);
-    vector->readers--;
-    if (vector->readers == 0) {
-        pthread_cond_signal(&vector->vec_cond);
+    if (vec->start == vec->head) {
+        JVEC_resize(vec, GROW_LEFT);
     }
-    pthread_mutex_unlock(&vector->vec_tex);
+    vec->start--;
+    *(vec->start) = data;
 
-    return len;
+    vec->length++;
+    vec->cap++;
+    return 0;
+}
+int JVEC_prepend(JVEC* vec, void* data) {
+    return JVEC_prepend_INLINE(vec, data);
 }
 
-
-void JVEC_free(JVEC *vector) {
-    if (!vector) {
-        printf("JVEC_free: vector is NULL.\n");
-        return;
+int JVEC_in_after(JVEC* vec, void* data, size_t idx) {
+    size_t len;
+    if (!vec || idx > (len = vec->length)) {
+        return -1;
+    }
+    // only concerned about exact index being modified 
+    idx++;
+    if (!vec || idx > len) {
+        return -1;
+    }
+    if (idx == len) {
+        return JVEC_append_INLINE(vec, data);
     }
 
-    //modifies vector, so must wait for all readers to leave
-    pthread_mutex_lock(&vector->vec_tex);
-    if (vector->readers) {
-        pthread_cond_wait(&vector->vec_cond, &vector->vec_tex);
+    size_t cap = vec->cap;
+    if (len == cap) {
+        JVEC_resize(vec, GROW_RIGHT);
     }
 
-    //free each item in the vector
-    size_t i;
-    for (i=0; i < vector->length; i++) {
-        vector->free_func(vector->head[i]);
-        vector->head[i] = NULL;
-    }
-    //free the array
-    free(vector->head);
-    vector->head = NULL;
-    return;
+    void** start = vec->start;
+    memmove((start+idx)+1, start+idx, (len-idx) * sizeof(void*));
+
+    *(start+idx) = data;
+    vec->length++;
+
+    return 0;
 }
+
+int JVEC_in_before(JVEC* vec, void* data, size_t idx) {
+    size_t len;
+    if (!vec || idx > (len = vec->length)) {
+        return -1;
+    }
+    // size_t can't be neg
+    if (idx == 0) {
+        return JVEC_prepend_INLINE(vec, data);
+    }
+    // only concerned with exact idx being modified
+    idx--;
+
+    return 1;
+}
+
+void JVEC_free(JVEC** vec_ptr) {
+
+    free((*vec_ptr)->head);
+    free(*vec_ptr);
+}
+
 
