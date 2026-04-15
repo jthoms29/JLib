@@ -14,7 +14,6 @@ void test_append_retrieve(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld appends in %ld ms\n", num, tm);
-
     start = cur_ms();
     for (size_t i = 0; i < num; i++) {
         char* ret = JVEC_get(vec, i);
@@ -22,7 +21,7 @@ void test_append_retrieve(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld retrievals in %ld ms\n", num, tm);
-
+    printf("%ld len, %ld cap", vec->length, vec->cap);
 
     JVEC_free(&vec);
     free_unique_strings(vals, num);
@@ -49,7 +48,7 @@ void test_prepend_retrieve(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld retrievals in %ld ms\n", num, tm);
-
+    printf("%ld len, %ld cap", vec->length, vec->cap);
 
     JVEC_free(&vec);
     free_unique_strings(vals, num);
