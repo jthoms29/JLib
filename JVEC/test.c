@@ -10,7 +10,7 @@ void test_append_retrieve(size_t num) {
     long tm, start = cur_ms();
     for (size_t i = 0; i < num; i++) {
         JVEC_append(vec, vals[i]);
-        assert(vec->length == i+1);
+        assert(vec->len == i+1);
     }
     tm = cur_ms() - start;
     printf("%ld appends in %ld ms\n", num, tm);
@@ -21,7 +21,7 @@ void test_append_retrieve(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld retrievals in %ld ms\n", num, tm);
-    printf("%ld len, %ld cap", vec->length, vec->cap);
+    printf("%ld len, %ld pad, %ld cap\n", vec->len, vec->pad_alloc, vec->cap);
 
     JVEC_free(&vec);
     free_unique_strings(vals, num);
@@ -36,7 +36,7 @@ void test_prepend_retrieve(size_t num) {
     long tm, start = cur_ms();
     for (size_t i = 0; i < num; i++) {
         JVEC_prepend(vec, vals[i]);
-        assert(vec->length == i+1);
+        assert(vec->len == i+1);
     }
     tm = cur_ms() - start;
     printf("%ld prepends in %ld ms\n", num, tm);
@@ -48,7 +48,7 @@ void test_prepend_retrieve(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld retrievals in %ld ms\n", num, tm);
-    printf("%ld len, %ld cap", vec->length, vec->cap);
+    printf("%ld len, %ld pad, %ld cap\n", vec->len, vec->pad_alloc, vec->cap);
 
     JVEC_free(&vec);
     free_unique_strings(vals, num);
@@ -62,7 +62,7 @@ void test_in_after(size_t num) {
     for (size_t i = 0; i < num; i+=2) {
         JVEC_append(vec, vals[i]);
     }
-    size_t len = vec->length;
+    size_t len = vec->len;
 
     assert(len == num/2);
 
@@ -70,7 +70,7 @@ void test_in_after(size_t num) {
     // now insert the other items
     for (size_t i = 1; i < num; i+=2) {
         assert(!JVEC_in_after(vec, vals[i], i-1));
-        assert(vec->length == len+1);
+        assert(vec->len == len+1);
         len++;
     }
     tm = cur_ms() - start;
@@ -83,15 +83,51 @@ void test_in_after(size_t num) {
     }
     tm = cur_ms() - start;
     printf("%ld retrievals in %ld ms\n", num, tm);
+    printf("%ld len, %ld pad, %ld cap\n", vec->len, vec->pad_alloc, vec->cap);
 
     JVEC_free(&vec);
     free_unique_strings(vals, num);
 }
 
 
+void test_in_before(size_t num) {
+    printf("\nin_before performance:\n");
+    char** vals = gen_unique_strings(num, 32);
+    JVEC* vec = JVEC_new(NULL);
+
+    for (size_t i = 1; i < num; i+=2) {
+        JVEC_append(vec, vals[i]);
+    }
+    size_t len = vec->len;
+
+    assert(len == num/2);
+
+    long tm, start = cur_ms();
+    // now insert the other items
+    for (size_t i = 0; i < num; i+=2) {
+        assert(!JVEC_in_before(vec, vals[i], i));
+        assert(vec->len == len+1);
+        len++;
+    }
+    tm = cur_ms() - start;
+    printf("%ld in_befores in %ld ms\n", num, tm);
+
+    start = cur_ms();
+    for (size_t i = 0; i < num; i++) {
+        char* ret = JVEC_get(vec, i);
+        assert(ret == vals[i]);
+    }
+    tm = cur_ms() - start;
+    printf("%ld retrievals in %ld ms\n", num, tm);
+    printf("%ld len, %ld pad, %ld cap\n", vec->len, vec->pad_alloc, vec->cap);
+
+    JVEC_free(&vec);
+    free_unique_strings(vals, num);
+}
 int main(void) {
 
     test_append_retrieve(100000);
     test_prepend_retrieve(100000);
     test_in_after(100000);
+    test_in_before(100000);
 }

@@ -17,7 +17,7 @@ static inline int JVEC_resize(JVEC* vec, enum resize_action act) {
             new_cap *= 2; 
             break;
         case SHRINK_RIGHT:
-            assert(new_cap >= INITIAL_CAP); // can't shrink beyond initial size
+            assert(new_cap >= INITIAL_CAP * 2); // can't shrink beyond initial size
             new_cap /= 2; 
             break;
         
@@ -26,7 +26,7 @@ static inline int JVEC_resize(JVEC* vec, enum resize_action act) {
             new_pad = vec->pad_alloc * 2; 
             break;
         case SHRINK_LEFT: 
-            assert(new_pad >= INITIAL_PAD); // can't shrink beyond initial size
+            assert(new_pad >= INITIAL_PAD * 2); // can't shrink beyond initial size
             new_pad = vec->pad_alloc / 2; 
             break;
     }
@@ -39,6 +39,8 @@ static inline int JVEC_resize(JVEC* vec, enum resize_action act) {
     }
 
     void** new_start = new_head + new_pad;
+
+    // if the pad allocation size changed, need to shift start of vector to account for it
     if (old_pad != new_pad) {
         void** old_start = new_head + old_pad;
         memmove(new_start, old_start, vec->len*sizeof(void*));
@@ -97,6 +99,7 @@ static inline int JVEC_append_INLINE(JVEC* vec, void* data) {
 
     return 0;
 }
+
 int JVEC_append(JVEC* vec, void* data) {
     return JVEC_append_INLINE(vec, data);
 }
@@ -122,20 +125,12 @@ int JVEC_prepend(JVEC* vec, void* data) {
     return JVEC_prepend_INLINE(vec, data);
 }
 
-int JVEC_in_after(JVEC* vec, void* data, size_t idx) {
-    size_t len;
-    
-    if (!vec || idx >= (len = vec->len)) {
-        return -1;
-    }
-    // only concerned about exact index being modified 
-    idx++;
-    if (idx == len) {
-        return JVEC_append_INLINE(vec, data);
-    }
 
+static inline int JVEC_shift_INLINE(JVEC* vec, size_t idx) {
     // want to shift everything before the new item backwards, or everything
     // after it forward - shift whichever has fewer
+    size_t len = vec->len;
+
     void** old_block;
     void** new_block;
     size_t block_len;
@@ -148,10 +143,9 @@ int JVEC_in_after(JVEC* vec, void* data, size_t idx) {
         old_block = vec->start;
         new_block = old_block - 1;
         block_len = idx;
-        memmove(new_block, old_block, block_len * sizeof(void*));
+        // change vals to account for use of pre-allocated pad space
         vec->start--;
         vec->cap++;
-        vec->start[idx] = data;
 
     }
     // fewer entries on right side, shift right
@@ -162,10 +156,27 @@ int JVEC_in_after(JVEC* vec, void* data, size_t idx) {
         old_block = vec->start + idx;
         new_block = old_block + 1;
         block_len = len - idx;
-        memmove(new_block, old_block, block_len * sizeof(void*));
-        vec->start[idx] = data;
     }
 
+    memmove(new_block, old_block, block_len * sizeof(void*));
+    return 0;
+}
+
+int JVEC_in_after(JVEC* vec, void* data, size_t idx) {
+    size_t len;
+    
+    if (!vec || idx >= (len = vec->len)) {
+        return -1;
+    }
+    // only concerned about exact index being modified 
+    idx++;
+    if (idx == len) {
+        return JVEC_append_INLINE(vec, data);
+    }
+
+    JVEC_shift_INLINE(vec, idx);
+
+    vec->start[idx] = data;
     vec->len++;
 
     return 0;
@@ -180,11 +191,17 @@ int JVEC_in_before(JVEC* vec, void* data, size_t idx) {
     if (idx == 0) {
         return JVEC_prepend_INLINE(vec, data);
     }
-    // only concerned with exact idx being modified
-    idx--;
 
-    return 1;
+    // shift any necessary elements
+    JVEC_shift_INLINE(vec, idx);
+
+    vec->start[idx] = data;
+    vec->len++;
+
+    return 0;
 }
+
+
 
 void JVEC_free(JVEC** vec_ptr) {
 

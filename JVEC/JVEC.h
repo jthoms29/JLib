@@ -22,6 +22,8 @@ enum resize_action {
 };
 
 
+
+
 /**
  * The vector data structure
  */
@@ -30,11 +32,13 @@ typedef struct JVEC {
     void** head;
     // first index taking the pad into account
     void** start;
-    // The current length of the vector 
-    size_t length;
+    // The current len of the vector 
+    size_t len;
     // The current capacity of the vector
     size_t cap;
-    size_t pad;
+    // current allocated pad (pre-allocated space before start of vector)    
+    size_t pad_alloc;
+    // user supplied free function to use on vector's items
     void (*free_func)(void* item);
 
 } JVEC;
@@ -48,15 +52,16 @@ JVEC* JVEC_new( void (*item_free_func)(void* item) );
 
 
 static inline void* JVEC_get(JVEC* vec, size_t idx) {
-    return (idx < vec->length) ? vec->start[idx] : NULL;
+    return (idx < vec->len) ? vec->start[idx] : NULL;
 }
+
 /**
  * Append a variable to the end of the vector.
  * \param[out] vector A pointer to a previously allocated JVEC
  * \param[in] data_ptr Pointer to a piece of data you wish to append to the vector 
  * \return 0 on success, 1 on failure
  */
-int JVEC_append(JVEC *vector, void* data_ptr);
+int JVEC_append(JVEC *vec, void* data_ptr);
 
 
 /**
@@ -65,11 +70,12 @@ int JVEC_append(JVEC *vector, void* data_ptr);
  * \param[in] data_ptr Pointer to a piece of data you wish to prepend to the vector 
  * \return 0 on success, 1 on failure
  */
-int JVEC_prepend(JVEC *vector, void* data_ptr);
+int JVEC_prepend(JVEC *vec, void* data_ptr);
 
 
 int JVEC_in_after(JVEC* vec, void* data, size_t idx);
 
+int JVEC_in_before(JVEC* vec, void* data, size_t idx);
 
 /**
  * Get the element residing at the given index in the vector.
@@ -77,14 +83,14 @@ int JVEC_in_after(JVEC* vec, void* data, size_t idx);
  * \param[in] index The index of the item in the vector you wish to retrieve
  * \return A pointer to the item on success, NULL on failure.
  */
-void* JVEC_get_at(JVEC* vector, size_t index);
+void* JVEC_get_at(JVEC* vec, size_t index);
 
 /**
  * Remove the last element in the vector and return it.
  * \param[out] vector A pointer to a previously allocated JVEC
  * \return A pointer to the former last item in the vector on success, NULL on failure.
  */
-void* JVEC_pop(JVEC* vector);
+void* JVEC_pop(JVEC* vec);
 
 /**
  * Remove the element residing at the given index in the vector.
@@ -92,20 +98,20 @@ void* JVEC_pop(JVEC* vector);
  * \param[in] index The index of the item in the vector you wish to remove
  * \return 0 on success, 1 on failure
  */
-int JVEC_remove_at(JVEC *vector, void* data_ptr);
+int JVEC_remove_at(JVEC *vec, void* data_ptr);
 
 /**
- * Get the current length of the given vector.
+ * Get the current len of the given vector.
  \param[in] vector A pointer to a previously allocated JVEC
- \return length on success, -1 on failure
+ \return len on success, -1 on failure
  */
-long JVEC_len(JVEC* vector);
+long JVEC_len(JVEC* vec);
 
 /**
  * Free the specified JVEC. Uses free function passed in on intitialization.
  * \param[in] vector A pointer to the JVEC you wish to free
  */
-void JVEC_free(JVEC** vector);
+void JVEC_free(JVEC** vec);
 
 
 #endif
